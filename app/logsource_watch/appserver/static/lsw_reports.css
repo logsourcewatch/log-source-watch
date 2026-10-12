@@ -1,4 +1,3 @@
-
 :root{--lsw-bg:#07121b;--lsw-panel:#0c1a25;--lsw-panel2:#102331;--lsw-line:#1d3444;--lsw-line2:#29485d;--lsw-text:#edf5f8;--lsw-muted:#8da5b5;--lsw-cyan:#58c7ef;--lsw-green:#38c982;--lsw-red:#e25050;--lsw-amber:#d8a11c;--lsw-violet:#8a6de9}
 body,.dashboard-body{background:var(--lsw-bg)!important;color:var(--lsw-text)!important}
 .dashboard-body{padding:0 14px 28px}
@@ -42,72 +41,44 @@ fieldset,.fieldset{border:1px solid var(--lsw-line)!important;border-radius:10px
 @media(max-width:900px){#lsw_report_kpis .dashboard-panel{min-height:150px!important}#lsw_report_kpis .single-value{min-height:114px!important}#lsw_report_kpis .single-value .single-result{font-size:28px!important}}
 /* === RC5 REPORT UI POLISH: END === */
 
-/* === RC6 REPORT COLOR FIX: BEGIN === */
-/* Preserve Splunk table formatter cells (color map / status highlights). */
-.table td[style],.splunk-table td[style]{color:#f7fbfd!important;font-weight:800!important;border-color:#172c3a!important}
-.table td[style*="background"],.splunk-table td[style*="background"]{box-shadow:inset 0 0 0 9999px transparent;border-radius:6px}
+/* === RC7 REPORT TEXT COLOR: BEGIN === */
+/* Splunk color formatters normally paint the whole table cell. In reports we
+   keep the formatter semantics but render the status as colored text only. */
+.table td[style],.splunk-table td[style]{background-color:transparent!important;background-image:none!important;font-weight:800!important;border-color:#172c3a!important;box-shadow:none!important}
 
-/* Fallback support if Splunk uses formatter classes instead of inline styles. */
-.table td[class*="lt_"],.splunk-table td[class*="lt_"],
-.table td[class*="range"],.splunk-table td[class*="range"],
-.table td[class*="format"],.splunk-table td[class*="format"]{color:#f7fbfd!important;font-weight:800!important}
+/* Green: OK / active / source enrolled */
+.table td[style*="#38c982"],.splunk-table td[style*="#38c982"],
+.table td[style*="rgb(56, 201, 130)"],.splunk-table td[style*="rgb(56, 201, 130)"],
+.table td[style*="rgb(56,201,130)"],.splunk-table td[style*="rgb(56,201,130)"]{color:#38c982!important}
 
-/* Audit trail action + status cells should read like badges. */
-#audit_table td[style],#audit_table td[class*="lt_"],#audit_table td[class*="range"],#audit_table td[class*="format"],
-#health_scheduler_table td[style],#health_scheduler_table td[class*="lt_"],#health_scheduler_table td[class*="range"],#health_scheduler_table td[class*="format"],
-#health_kv_table td[style],#health_kv_table td[class*="lt_"],#health_kv_table td[class*="range"],#health_kv_table td[class*="format"]{text-transform:none!important;letter-spacing:0!important}
-/* === RC6 REPORT COLOR FIX: END === */
+/* Red: ERROR / silent */
+.table td[style*="#e25050"],.splunk-table td[style*="#e25050"],
+.table td[style*="rgb(226, 80, 80)"],.splunk-table td[style*="rgb(226, 80, 80)"],
+.table td[style*="rgb(226,80,80)"],.splunk-table td[style*="rgb(226,80,80)"]{color:#e25050!important}
 
-/* === RC7 REPORT TEXT COLOR FIX: BEGIN === */
-/*
- * Text-only status colors for Audit Trail and Application Health.
- * Splunk's color formatter still supplies the semantic palette in an inline
- * background-color. We neutralize that fill, then mirror the palette into
- * the foreground color. This keeps the XML maps authoritative without the
- * large colored cell blocks.
- */
-#health_scheduler_table td[style],
-#health_kv_table td[style],
-#audit_table td[style]{
-  background:#0a1721!important;
-  background-color:#0a1721!important;
-  box-shadow:none!important;
-  border-radius:0!important;
-  color:#d7e3e9!important;
-  font-weight:800!important;
-}
+/* Amber: WARN / stale / lifecycle / no observation */
+.table td[style*="#d8a11c"],.splunk-table td[style*="#d8a11c"],
+.table td[style*="rgb(216, 161, 28)"],.splunk-table td[style*="rgb(216, 161, 28)"],
+.table td[style*="rgb(216,161,28)"],.splunk-table td[style*="rgb(216,161,28)"],
+.table td[style*="#e2a12a"],.splunk-table td[style*="#e2a12a"],
+.table td[style*="rgb(226, 161, 42)"],.splunk-table td[style*="rgb(226, 161, 42)"],
+.table td[style*="rgb(226,161,42)"],.splunk-table td[style*="rgb(226,161,42)"]{color:#d8a11c!important}
 
-/* green: OK / ACTIVE / SOURCE ENROLLED */
-#health_scheduler_table td[style*="#38c982"],#health_scheduler_table td[style*="56, 201, 130"],#health_scheduler_table td[style*="56,201,130"],
-#health_kv_table td[style*="#38c982"],#health_kv_table td[style*="56, 201, 130"],#health_kv_table td[style*="56,201,130"],
-#audit_table td[style*="#38c982"],#audit_table td[style*="56, 201, 130"],#audit_table td[style*="56,201,130"]{color:#38c982!important}
+/* Violet: maintenance */
+.table td[style*="#8a6de9"],.splunk-table td[style*="#8a6de9"],
+.table td[style*="rgb(138, 109, 233)"],.splunk-table td[style*="rgb(138, 109, 233)"],
+.table td[style*="rgb(138,109,233)"],.splunk-table td[style*="rgb(138,109,233)"]{color:#8a6de9!important}
 
-/* cyan: waiting / new / threshold */
-#health_scheduler_table td[style*="#5ab8e8"],#health_scheduler_table td[style*="90, 184, 232"],#health_scheduler_table td[style*="90,184,232"],
-#health_kv_table td[style*="#5ab8e8"],#health_kv_table td[style*="90, 184, 232"],#health_kv_table td[style*="90,184,232"],
-#audit_table td[style*="#5ab8e8"],#audit_table td[style*="90, 184, 232"],#audit_table td[style*="90,184,232"]{color:#5ab8e8!important}
+/* Cyan: threshold / setup / new */
+.table td[style*="#5ab8e8"],.splunk-table td[style*="#5ab8e8"],
+.table td[style*="rgb(90, 184, 232)"],.splunk-table td[style*="rgb(90, 184, 232)"],
+.table td[style*="rgb(90,184,232)"],.splunk-table td[style*="rgb(90,184,232)"]{color:#5ab8e8!important}
 
-/* violet: maintenance */
-#health_scheduler_table td[style*="#8a6de9"],#health_scheduler_table td[style*="138, 109, 233"],#health_scheduler_table td[style*="138,109,233"],
-#health_kv_table td[style*="#8a6de9"],#health_kv_table td[style*="138, 109, 233"],#health_kv_table td[style*="138,109,233"],
-#audit_table td[style*="#8a6de9"],#audit_table td[style*="138, 109, 233"],#audit_table td[style*="138,109,233"]{color:#8a6de9!important}
+/* Muted: EMPTY / retired / neutral */
+.table td[style*="#8799a7"],.splunk-table td[style*="#8799a7"],
+.table td[style*="rgb(135, 153, 167)"],.splunk-table td[style*="rgb(135, 153, 167)"],
+.table td[style*="rgb(135,153,167)"],.splunk-table td[style*="rgb(135,153,167)"]{color:#8799a7!important}
 
-/* amber: warning / lifecycle / no-log */
-#health_scheduler_table td[style*="#d8a11c"],#health_scheduler_table td[style*="216, 161, 28"],#health_scheduler_table td[style*="216,161,28"],
-#health_kv_table td[style*="#d8a11c"],#health_kv_table td[style*="216, 161, 28"],#health_kv_table td[style*="216,161,28"],
-#audit_table td[style*="#d8a11c"],#audit_table td[style*="216, 161, 28"],#audit_table td[style*="216,161,28"]{color:#d8a11c!important}
-
-/* stale amber */
-#health_scheduler_table td[style*="#e2a12a"],#health_scheduler_table td[style*="226, 161, 42"],#health_scheduler_table td[style*="226,161,42"],
-#health_kv_table td[style*="#e2a12a"],#health_kv_table td[style*="226, 161, 42"],#health_kv_table td[style*="226,161,42"]{color:#e2a12a!important}
-
-/* red: error / silent */
-#health_scheduler_table td[style*="#e25050"],#health_scheduler_table td[style*="226, 80, 80"],#health_scheduler_table td[style*="226,80,80"],
-#health_kv_table td[style*="#e25050"],#health_kv_table td[style*="226, 80, 80"],#health_kv_table td[style*="226,80,80"],
-#audit_table td[style*="#e25050"],#audit_table td[style*="226, 80, 80"],#audit_table td[style*="226,80,80"]{color:#e25050!important}
-
-/* muted: empty / retired / not applicable */
-#health_scheduler_table td[style*="#8799a7"],#health_scheduler_table td[style*="135, 153, 167"],#health_scheduler_table td[style*="135,153,167"],
-#health_kv_table td[style*="#8799a7"],#health_kv_table td[style*="135, 153, 167"],#health_kv_table td[style*="135,153,167"],
-#audit_table td[style*="#8799a7"],#audit_table td[style*="135, 153, 167"],#audit_table td[style*="135,153,167"]{color:#8799a7!important}
-/* === RC7 REPORT TEXT COLOR FIX: END === */
+/* Do not restore background fills on hover. */
+.table tr:hover td[style],.splunk-table tr:hover td[style]{background-color:transparent!important;background-image:none!important}
+/* === RC7 REPORT TEXT COLOR: END === */
