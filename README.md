@@ -105,8 +105,6 @@ Do not report suspected vulnerabilities in public issues. See [SECURITY.md](SECU
 
 This repository is **source-available, not an OSI open-source project**. Use, deployment, redistribution, and commercial rights are governed by [LICENSE.txt](LICENSE.txt).
 
-The private commercial-license signing key and issuer tooling are intentionally **not** part of this repository.
-
 ## Links
 
 - Product: https://logsourcewatch.com/
