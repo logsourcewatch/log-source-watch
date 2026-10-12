@@ -80,3 +80,10 @@ https://logsourcewatch.com/#pricing
 
 No paid license file is required for Community Edition. When no signed file is
 installed, the application defaults to a 100 Monitored Source capacity.
+
+
+## Runtime status and expiry behavior
+
+Current license validity, capacity usage, expiry and deployment entitlements are shown under **Reports -> Application Health**. Overview raises a notification when a paid license has 30 days or less remaining and when licensed source capacity is at least 90% utilized.
+
+When a valid paid license expires, existing registered sources continue to be monitored. Actions that would increase the monitored-source population are blocked until a renewed license is installed.

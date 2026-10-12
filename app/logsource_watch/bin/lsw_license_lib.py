@@ -153,12 +153,34 @@ def load_license(path: str | None = None, now: datetime | None = None) -> dict:
     if not_before and now < not_before:
         fallback["message"] = "License is not valid yet. Community capacity is being enforced until %s." % document.get("not_before")
         return fallback
-    if expires_at and now > expires_at:
-        fallback["license_status"] = "EXPIRED"
-        fallback["message"] = "Paid license expired on %s. Community capacity is being enforced." % document.get("expires_at")
-        return fallback
-
     features = document.get("features") or {}
+    if expires_at and now > expires_at:
+        return {
+            "license_mode": "EXPIRED",
+            "license_status": "EXPIRED",
+            "license_valid": 0,
+            "edition": edition,
+            "customer": str(document.get("customer") or ""),
+            "license_id": str(document.get("license_id") or ""),
+            "max_monitored_sources": max_sources,
+            "shc_allowed": 1 if features.get("shc") else 0,
+            "multiple_search_heads_allowed": 1 if features.get("multiple_production_search_heads") else 0,
+            "managed_service_allowed": 1 if features.get("managed_service") else 0,
+            "redistribution_allowed": 1 if features.get("redistribution") else 0,
+            "issued_at": str(document.get("issued_at") or ""),
+            "not_before": str(document.get("not_before") or ""),
+            "expires_at": str(document.get("expires_at") or ""),
+            "days_remaining": 0,
+            "message": (
+                "Paid %s license expired on %s. Existing registered sources continue "
+                "to be monitored, but actions that increase monitored-source capacity "
+                "are blocked until the license is renewed."
+                % (edition, document.get("expires_at"))
+            ),
+            "license_file_present": 1,
+            "license_path": path,
+        }
+
     days_remaining = ""
     if expires_at:
         days_remaining = max(0, (expires_at.date() - now.date()).days)
@@ -190,6 +212,14 @@ def capacity_allows(status: dict, current_monitored: int, increment: int = 0) ->
     current = max(0, int(current_monitored or 0))
     increment = max(0, int(increment or 0))
     projected = current + increment
+    if str(status.get("license_status") or "").upper() == "EXPIRED":
+        if increment > 0:
+            return False, (
+                "Paid %s license has expired. Existing registered sources continue to be "
+                "monitored, but new monitored-source capacity is blocked until renewal."
+                % status.get("edition", "Log Source Watch")
+            ), projected
+        return True, "Expired license: existing monitored population preserved", projected
     maximum = int(status.get("max_monitored_sources", COMMUNITY_LIMIT) or 0)
     if maximum <= 0:
         return True, "Unlimited licensed capacity", projected

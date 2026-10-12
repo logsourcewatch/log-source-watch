@@ -1,4 +1,4 @@
-<form version="1.1" theme="dark" stylesheet="lsw_setup.css" script="lsw_setup_2026101209.js">
+<form version="1.1" theme="dark" stylesheet="lsw_setup.css" script="lsw_setup_2026101213.js">
   <label>Initial Setup</label>
   <description>First-run initialization of KV Store inventory, last-seen baseline and canonical monitoring state.</description>
   <init>
@@ -28,7 +28,7 @@
     </input>
     <input type="link" token="setup_action" searchWhenChanged="true">
       <label>Initialize</label><choice value="run">INITIALIZE LOG SOURCE WATCH</choice>
-      <change><condition value="run"><set token="run_index">$setup_index$</set><set token="run_earliest">$setup_earliest$</set><set token="run_threshold">$setup_threshold$</set><eval token="run_nonce">now()</eval></condition></change>
+      <change><condition value="run"><eval token="setup_request_nonce">now()</eval></condition></change>
     </input>
   </fieldset>
 
@@ -55,7 +55,7 @@
     Inventory=0,"No monitored sources are registered yet. Select an index, baseline and silence threshold, then initialize Log Source Watch.",
     State!=Inventory,"Inventory contains ".Inventory." sources but canonical state contains ".State.". Rebuild the state before relying on monitoring results.",
     Missing_observation>0,"Monitoring is initialized for ".Inventory." sources. ".Last_seen." currently have a last-seen observation and ".Missing_observation." are tracked as NO LOG OBSERVATION.",
-    true(),"Monitoring is initialized for ".Inventory." sources and canonical state is complete."
+    true(),"Monitoring is initialized for ".Inventory." sources and canonical state is complete. Continue to Overview, then use Management → Discover to add additional indexes and hosts."
   )
 | fields Inventory Last_seen State Audit Banner_class Banner_title Banner_detail
     ]]></query>
@@ -67,73 +67,7 @@
     </done>
   </search>
 
-  <search id="setup_inventory" depends="$run_nonce$">
-    <query><![CDATA[
-| tstats latest(_time) AS seen WHERE index=$run_index|s$ earliest=$run_earliest|s$ latest=now BY index host
-| eval request_id=$run_nonce|s$
-| where len(request_id)>0 AND $run_index|s$!="-" AND len(host)>0 AND len(host)<=255 AND NOT match(host,"[\x00-\x1F\x7F*?]")
-| eval _key=sha256(index."|".host), setup_threshold=tonumber($run_threshold|s$), setup_now=now()
-| lookup local=true lsw_inventory _key OUTPUT status AS old_status threshold_seconds AS old_threshold maintenance_until AS old_maintenance change_ref AS old_ref created_at AS old_created
-| eval license_increment=if(isnull(old_status),1,0)
-| lswlicenseguard increment_field=license_increment
-| eval status=coalesce(old_status,"active"), threshold_seconds=coalesce(old_threshold,setup_threshold), maintenance_until=coalesce(old_maintenance,0), change_ref=if(isnull(old_status),"setup-initial-enrollment",coalesce(old_ref,"setup-refresh")), created_at=coalesce(old_created,setup_now), updated_at=setup_now
-| fields _key index host status threshold_seconds maintenance_until change_ref created_at updated_at
-| outputlookup append=true key_field=_key allow_updates=true override_if_empty=false lsw_inventory
-| stats count AS rows
-    ]]></query>
-    <done><set token="inventory_rows">$result.rows$</set><eval token="seed_nonce">now()</eval><unset token="run_nonce"/><unset token="setup_action"/><unset token="form.setup_action"/></done>
-    <error><set token="setup_message">Inventory initialization failed. Check license capacity, index access and KV Store write permissions.</set><unset token="run_nonce"/></error>
-  </search>
 
-  <search id="setup_lastseen" depends="$seed_nonce$">
-    <query><![CDATA[
-| tstats latest(_time) AS seen WHERE index=$run_index|s$ earliest=$run_earliest|s$ latest=now BY index host
-| where len(host)>0 AND len(host)<=255 AND NOT match(host,"[\x00-\x1F\x7F*?]")
-| eval _key=sha256(index."|".host)
-| lookup local=true lsw_inventory _key OUTPUT status AS inventory_status
-| where inventory_status="active" OR inventory_status="maintenance"
-| lookup local=true lsw_lastseen _key OUTPUT last_seen AS old_seen
-| eval last_seen=if(isnull(old_seen),seen,if(seen>old_seen,seen,old_seen)), updated_at=now()
-| fields _key index host last_seen updated_at
-| outputlookup append=true key_field=_key allow_updates=true override_if_empty=false lsw_lastseen
-| stats count AS rows
-    ]]></query>
-    <done><set token="lastseen_rows">$result.rows$</set><eval token="state_nonce">now()</eval><unset token="seed_nonce"/></done>
-    <error><set token="setup_message">last_seen initialization failed. Check Job Inspector and lsw_lastseen.</set><unset token="seed_nonce"/></error>
-  </search>
-
-  <search id="setup_state" depends="$state_nonce$">
-    <query><![CDATA[
-| inputlookup lsw_inventory
-| lookup local=true lsw_lastseen _key OUTPUT last_seen updated_at AS lastseen_updated_at
-| `lsw_calculate_state`
-| eval state_updated_at=now()
-| fields _key index host status threshold_seconds threshold_minutes maintenance_until change_ref last_seen lastseen_updated_at age_seconds age_minutes effective_state alarm state_updated_at
-| outputlookup append=false key_field=_key allow_updates=true override_if_empty=true lsw_state
-| stats count AS rows
-    ]]></query>
-    <done><set token="state_rows">$result.rows$</set><eval token="verify_nonce">now()</eval><unset token="state_nonce"/></done>
-    <error><set token="setup_message">State build failed. Check lsw_inventory, lsw_lastseen and lsw_calculate_state.</set><unset token="state_nonce"/></error>
-  </search>
-
-  <search id="setup_verify" depends="$verify_nonce$">
-    <query><![CDATA[
-| inputlookup lsw_inventory | stats count AS inventory
-| appendcols [ | inputlookup lsw_lastseen | stats count AS lastseen ]
-| appendcols [ | inputlookup lsw_state | stats count AS state ]
-| appendcols [ | inputlookup lsw_audit | stats count AS audit ]
-| eval missing_observation=if(inventory>lastseen,inventory-lastseen,0)
-| eval status=case(inventory=0,"SETUP REQUIRED",state!=inventory,"ATTENTION",true(),"READY")
-| eval message=case(
-    status="SETUP REQUIRED","No sources were enrolled.",
-    status="ATTENTION","Inventory contains ".inventory." sources but canonical state contains ".state.". Rebuild canonical state before relying on monitoring results.",
-    missing_observation>0,"Initialization complete. ".inventory." sources are registered; ".missing_observation." are currently NO LOG OBSERVATION.",
-    true(),"Initialization complete. Log Source Watch is ready."
-  )
-| fields status inventory lastseen state audit message
-    ]]></query>
-    <done><set token="setup_message">$result.message$</set><unset token="verify_nonce"/></done>
-  </search>
 
 
   <row id="lsw_setup_intro"><panel><html>
@@ -143,7 +77,7 @@
         <h1>Initial Setup</h1>
         <p>Verify the packaged KV Store schema, enroll the first source scope, seed latest observations and build canonical state.</p>
       </div>
-      <div class="lsw-setup-badge">4.9.3 · build 2026101209</div>
+      <div class="lsw-setup-badge">4.9.3 · build 2026101213</div>
     </div>
     <nav class="lsw-setup-tabs" aria-label="Management workspace">
       <a href="manage_hosts">Sources</a>
@@ -151,7 +85,8 @@
       <a href="add_log_sources">Discover</a>
       <a class="active" href="initial_setup">Initial Setup</a>
     </nav>
-    <div class="lsw-setup-note"><b>Safe first run:</b> recurring schedulers are enabled but last-seen collection remains fail-closed until inventory contains active or maintenance sources.</div>
+    <div class="lsw-setup-note"><b>Safe first run:</b> recurring schedulers are enabled but last-seen collection remains fail-closed until inventory contains active or maintenance sources. Initial Setup enrolls only the selected first index; add further source scopes later from <b>Management → Discover</b>.</div>
+    <div class="lsw-setup-note lsw-setup-note-warning"><b>Splunk query confirmations:</b> Splunk can show warnings for packaged administrative searches elsewhere in the app. Accept a warning only when you intentionally started that Log Source Watch action. Initial Setup itself uses read-only discovery plus authenticated KV Store writes and does not rely on a hidden <code>outputlookup</code> dashboard search.</div>
     <div class="lsw-setup-status $setup_banner_class$">
       <div class="lsw-setup-status-icon" aria-hidden="true">●</div>
       <div><strong>$setup_banner_title$</strong><span>$setup_banner_detail$</span></div>
@@ -195,6 +130,6 @@
   </row>
 
   <row><panel><title>What Initialize does</title><html>
-    <div class="lsw_tech_card"><p><b>Initialize Log Source Watch</b> enrolls the selected index/host sources, seeds <code>lsw_lastseen</code>, builds <code>lsw_state</code> immediately, and leaves the packaged five-minute schedulers running for ongoing monitoring.</p><p>KV Store collections and fields are defined by the application package. No manual KV Store creation is required.</p></div>
+    <div class="lsw_tech_card"><p><b>Initialize Log Source Watch</b> discovers the selected index with a read-only search, enrolls those index/host sources as the <b>first monitoring scope</b>, writes <code>lsw_inventory</code>, <code>lsw_lastseen</code>, <code>lsw_state</code> and <code>lsw_audit</code> through the authenticated app KV Store API, and leaves the packaged five-minute schedulers running for ongoing monitoring.</p><p><b>Next:</b> after initialization you are taken to Overview. Use <b>Management → Discover</b> to enroll additional indexes and hosts; Initial Setup is not intended to be repeated for every index.</p><p>KV Store collections and fields are defined by the application package. No manual KV Store creation is required.</p></div>
   </html></panel></row>
 </form>

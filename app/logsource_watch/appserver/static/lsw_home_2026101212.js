@@ -2,8 +2,9 @@
 require([
   "jquery",
   "splunkjs/mvc",
+  "splunkjs/mvc/searchmanager",
   "splunkjs/mvc/simplexml/ready!"
-], function($, mvc) {
+], function($, mvc, SearchManager) {
   "use strict";
 
   var APP = "logsource_watch";
@@ -20,6 +21,10 @@ require([
   function pct(n,d){return d?Math.round((n/d)*1000)/10:0;}
   function apiError(v){if(!v)return "Unknown error";if(typeof v==="string")return v;if(v.message)return String(v.message);if(v.statusText)return String(v.statusText);if(v.responseText){try{var p=JSON.parse(v.responseText);if(p.messages&&p.messages[0])return p.messages[0].text||JSON.stringify(p.messages[0]);}catch(e){}return String(v.responseText).slice(0,500);}try{return JSON.stringify(v);}catch(e2){return String(v);}}
   function kvGet(collection,params){return new Promise(function(resolve,reject){service.get("storage/collections/data/"+collection,params||{},function(err,res){if(err){reject(new Error(apiError(err)));return;}var d=res&&res.data!==undefined?res.data:res;if(typeof d==="string"){try{d=JSON.parse(d);}catch(e){}}resolve($.isArray(d)?d:[]);});});}
+  var searchSeq=0;
+  function resultRows(payload){if(!payload)return[];if(payload.results&&$.isArray(payload.results))return payload.results;var f=payload.fields||[],r=payload.rows||[],names=f.map(function(x){return typeof x==="string"?x:x.name;});return r.map(function(row){var o={};names.forEach(function(k,i){o[k]=row[i];});return o;});}
+  function runSearch(search,timeout){return new Promise(function(resolve,reject){var id="lsw_home_search_"+Date.now()+"_"+(++searchSeq),done=false,timer,mgr,res;function finish(fn,v){if(done)return;done=true;window.clearTimeout(timer);try{mvc.Components.revokeInstance(id);}catch(e){}fn(v);}try{mgr=new SearchManager({id:id,search:search,preview:false,cache:false,autostart:false,app:APP});res=mgr.data("results",{count:0,output_mode:"json"});res.on("data",function(){try{var p=res.data();if(p)finish(resolve,resultRows(p));}catch(e){finish(reject,e);}});mgr.on("search:error",function(e){finish(reject,new Error("Search error: "+String((e&&e.message)||e)));});mgr.on("search:failed",function(e){finish(reject,new Error("Search failed: "+String((e&&e.message)||e)));});mgr.on("search:done",function(p){if(p&&p.content&&Number(p.content.resultCount||0)===0)finish(resolve,[]);});timer=window.setTimeout(function(){try{mgr.cancel();}catch(e){}finish(reject,new Error("Search timed out"));},timeout||15000);mgr.startSearch();}catch(e){finish(reject,e);}});}
+  function licenseStatus(){return runSearch('| lswlicense | fields license_status license_valid edition customer license_id max_monitored_sources shc_allowed multiple_search_heads_allowed managed_service_allowed redistribution_allowed deployment_compliant expires_at days_remaining message',15000).then(function(r){return r&&r[0]?r[0]:{};}).catch(function(){return {license_status:"COMMUNITY",license_valid:1,edition:"Community",license_id:"COMMUNITY",max_monitored_sources:100,days_remaining:"",expires_at:"",message:"Community Edition is active."};});}
 
   function sourceState(inv,ls){
     var now=epoch(),status=String(inv.status||"active").toLowerCase(),threshold=num(inv.threshold_seconds)||7200,maint=num(inv.maintenance_until),last=ls&&ls.last_seen!==undefined?Number(ls.last_seen):null,age=null,effective;
@@ -61,8 +66,19 @@ require([
   function operationLabel(op){var m={threshold_change:'Threshold changed',maintenance_set:'Maintenance updated',lifecycle_change:'Lifecycle changed',source_enrolled:'Source enrolled'};return m[op]||String(op||'Configuration update').replace(/_/g,' ');}
   function changeClass(op){if(op==='source_enrolled')return 'good';if(op==='maintenance_set')return 'maintenance';if(op==='lifecycle_change')return 'warn';return 'info';}
 
+  function renderLicenseNotice(license,monitored){
+    license=license||{};var status=String(license.license_status||"COMMUNITY").toUpperCase(),edition=license.edition||"Community",max=Number(license.max_monitored_sources||100),daysText=license.days_remaining,days=daysText===""?NaN:Number(daysText),util=max>0?pct(monitored,max):0,title="",detail="",cls="warn";
+    if(status==="EXPIRED"){cls="critical";title="LICENSE EXPIRED";detail=license.message||("The "+edition+" license has expired. Existing monitoring continues, but capacity expansion is blocked until renewal.");}
+    else if(status==="INVALID"){cls="critical";title="LICENSE NEEDS ATTENTION";detail=license.message||"The installed license could not be validated. Review Application Health.";}
+    else if(status==="VALID"&&isFinite(days)&&days<=7){cls="critical";title="LICENSE EXPIRES SOON";detail=edition+" license expires in "+days+" day"+(days===1?"":"s")+(license.expires_at?" ("+license.expires_at+")":"")+". Renew before expiry.";}
+    else if(status==="VALID"&&isFinite(days)&&days<=30){title="LICENSE EXPIRING";detail=edition+" license expires in "+days+" days"+(license.expires_at?" ("+license.expires_at+")":"")+". Plan renewal before expiry.";}
+    else if(max>0&&util>=90){title="LICENSE CAPACITY NEAR LIMIT";detail=monitored.toLocaleString()+" / "+max.toLocaleString()+" monitored-source capacity in use ("+util+"%).";}
+    if(!title)return "";
+    return '<a href="health" class="lsw-license-notice '+cls+'"><div class="lsw-license-notice-icon">'+icon('alert')+'</div><div><strong>'+esc(title)+'</strong><span>'+esc(detail)+'</span></div><b>View license status →</b></a>';
+  }
+
   function render(payload){
-    var inv=payload.inv,seen=payload.seen,audit=payload.audit,seenBy={};seen.forEach(function(x){seenBy[x._key]=x;});
+    var inv=payload.inv,seen=payload.seen,audit=payload.audit,license=payload.license||{},seenBy={};seen.forEach(function(x){seenBy[x._key]=x;});
     var rows=inv.map(function(x){return sourceState(x,seenBy[x._key]);});
     var counts={OK:0,SILENT:0,'NO LOG OBSERVATION':0,MAINTENANCE:0,RETIRED:0};rows.forEach(function(r){if(counts[r.effective_state]!==undefined)counts[r.effective_state]++;});
     var registered=rows.length, monitored=registered-counts.RETIRED, attention=counts.SILENT+counts['NO LOG OBSERVATION'];
@@ -77,10 +93,12 @@ require([
     var recent=(audit||[]).slice(0,7);
     var updated=new Date(),z=function(n){return String(n).padStart(2,'0');},updatedText=updated.getFullYear()+'-'+z(updated.getMonth()+1)+'-'+z(updated.getDate())+' '+z(updated.getHours())+':'+z(updated.getMinutes())+':'+z(updated.getSeconds());
 
-    var alertCard=attention?'<a href="silent_hosts" class="lsw-attention-banner"><div class="lsw-attention-symbol">'+icon('alert')+'</div><div><strong>'+attention+' source'+(attention===1?'':'s')+' require review</strong><span>Silent sources or registered sources with no log observation need operator attention.</span></div><b>›</b></a>':'<div class="lsw-attention-banner clear"><div class="lsw-attention-symbol">'+icon('ok')+'</div><div><strong>No sources require review</strong><span>All monitored sources are within policy.</span></div></div>';
+    var alertCard=registered===0?'<a href="initial_setup" class="lsw-attention-banner setup"><div class="lsw-attention-symbol">'+icon('alert')+'</div><div><strong>Initial Setup required</strong><span>Configure the first monitoring scope, then use Management → Discover to enroll additional indexes and hosts.</span></div><b>Open setup ›</b></a>':attention?'<a href="silent_hosts" class="lsw-attention-banner"><div class="lsw-attention-symbol">'+icon('alert')+'</div><div><strong>'+attention+' source'+(attention===1?'':'s')+' require review</strong><span>Silent sources or registered sources with no log observation need operator attention.</span></div><b>›</b></a>':'<div class="lsw-attention-banner clear"><div class="lsw-attention-symbol">'+icon('ok')+'</div><div><strong>No sources require review</strong><span>All monitored sources are within policy.</span></div></div>';
 
     var table=attentionRows.length?attentionRows.map(function(r){return '<tr><td><b>'+esc(r.host)+'</b></td><td>'+esc(r.index)+'</td><td><span class="lsw-state-pill '+(r.effective_state==='SILENT'?'silent':'noobs')+'">'+esc(r.effective_state)+'</span></td><td>'+r.threshold_minutes+' min</td><td>'+fmtEpoch(r.last_seen)+'</td><td class="lsw-age '+(r.effective_state==='SILENT'?'hot':'')+'">'+ageText(r.age_seconds)+'</td><td><a href="manage_hosts" class="lsw-row-action">Manage →</a></td></tr>';}).join(''):'<tr><td colspan="7" class="lsw-empty-cell">No sources currently require attention.</td></tr>';
     var changes=recent.length?recent.map(function(a){return '<tr><td>'+fmtEpoch(a.event_time_epoch)+'</td><td><b>'+esc(a.host||'—')+'</b><small>'+esc(a.index||'')+'</small></td><td><span class="lsw-change-dot '+changeClass(a.operation)+'"></span>'+esc(operationLabel(a.operation))+'</td><td>'+esc(a.details||'—')+'</td></tr>';}).join(''):'<tr><td colspan="4" class="lsw-empty-cell">No recent administrative changes available.</td></tr>';
+
+    var licenseNotice=renderLicenseNotice(license,monitored);
 
     var html=''+
     '<div class="lsw-home-shell">'+
@@ -93,6 +111,7 @@ require([
         kpi('maintenance','maintenance','MAINTENANCE',counts.MAINTENANCE,pct(counts.MAINTENANCE,monitored)+'% of monitored',pct(counts.MAINTENANCE,monitored))+
         kpi('retired','retired','RETIRED',counts.RETIRED,'Retained for history',pct(counts.RETIRED,registered))+
       '</section>'+
+      licenseNotice+
       '<section class="lsw-home-main-grid"><article class="lsw-home-card lsw-risk-card"><header><div><span class="lsw-card-icon">▥</span><h2>Silence Risk Profile</h2><p>Current monitored population by silence-threshold consumption.</p></div><a href="manage_hosts">Open Management →</a></header>'+renderRisk(rows,monitored)+'</article><aside class="lsw-home-side">'+alertCard+'<article class="lsw-home-card lsw-distribution-card"><header><div><h2>Source State Distribution</h2><p>Current registered source population.</p></div></header><div class="lsw-donut-wrap"><div class="lsw-donut" style="background:'+donut+'"><div><strong>'+registered+'</strong><span>Sources</span></div></div><div class="lsw-donut-legend">'+
         '<div><i class="ok"></i><span>OK</span><b>'+counts.OK+' <small>('+pct(counts.OK,registered)+'%)</small></b></div>'+
         '<div><i class="silent"></i><span>Silent</span><b>'+counts.SILENT+' <small>('+pct(counts.SILENT,registered)+'%)</small></b></div>'+
@@ -112,8 +131,9 @@ require([
     Promise.all([
       kvGet('lsw_inventory',{limit:10000}),
       kvGet('lsw_lastseen',{limit:10000}),
-      kvGet('lsw_audit',{sort:'event_time_epoch:-1',limit:8}).catch(function(){return [];})
-    ]).then(function(p){render({inv:p[0],seen:p[1],audit:p[2]});}).catch(renderError).then(function(){$(ROOT).removeClass('is-loading');});
+      kvGet('lsw_audit',{sort:'event_time_epoch:-1',limit:8}).catch(function(){return [];}),
+      licenseStatus()
+    ]).then(function(p){render({inv:p[0],seen:p[1],audit:p[2],license:p[3]});}).catch(renderError).then(function(){$(ROOT).removeClass('is-loading');});
   }
   $(document).on('click.lswhome','[data-home-action=refresh]',function(){load();});
   timer=window.setInterval(function(){if(!document.hidden)load();},REFRESH_MS);

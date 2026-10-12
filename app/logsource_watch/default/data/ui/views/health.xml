@@ -2,7 +2,27 @@
   <label>Application Health</label>
   <description>Scheduler execution, KV Store readiness and monitoring statistics for Log Source Watch.</description>
 
+  <init>
+    <set token="lic_class">community</set><set token="lic_status">LOADING</set><set token="lic_edition">—</set><set token="lic_usage">—</set><set token="lic_customer">—</set><set token="lic_id">—</set><set token="lic_expires">—</set><set token="lic_days">—</set><set token="lic_shc">—</set><set token="lic_multi">—</set><set token="lic_msp">—</set><set token="lic_redist">—</set><set token="lic_message">Reading license status…</set>
+  </init>
+
   <search id="health_base"><query>| savedsearch LSW_Health</query><refresh>60s</refresh><refreshType>delay</refreshType></search>
+  <search id="license_base">
+    <query><![CDATA[
+| lswlicense
+| appendcols [ | inputlookup lsw_inventory | where status="active" OR status="maintenance" | stats count AS monitored_sources ]
+| eval monitored_sources=coalesce(monitored_sources,0), max_sources=tonumber(max_monitored_sources)
+| eval customer=if(license_status="COMMUNITY","Community",if(isnull(customer) OR len(trim(customer))=0,"—",customer))
+| eval capacity_text=if(max_sources<=0,tostring(monitored_sources)." / Unlimited",tostring(monitored_sources)." / ".tostring(max_sources))
+| eval utilization=if(max_sources<=0,0,round(monitored_sources/max_sources*100,1))
+| eval license_class=case(license_status="EXPIRED" OR license_status="INVALID" OR license_valid=0,"bad",license_status="VALID","good",license_status="COMMUNITY","community",true(),"warn")
+| eval expires_text=if(isnull(expires_at) OR expires_at="","Not applicable",expires_at), days_text=case(license_status="EXPIRED","Expired",isnull(days_remaining) OR days_remaining="","—",true(),tostring(days_remaining)." days")
+| eval shc_text=if(shc_allowed=1,"Allowed","Not entitled"), multi_text=if(multiple_search_heads_allowed=1,"Allowed","Not entitled"), msp_text=if(managed_service_allowed=1,"Allowed","Not entitled"), redist_text=if(redistribution_allowed=1,"Allowed","Not entitled")
+| fields license_status license_valid edition customer license_id capacity_text utilization expires_text days_text shc_text multi_text msp_text redist_text message license_class
+    ]]></query><refresh>60s</refresh><refreshType>delay</refreshType>
+    <done><set token="lic_class">$result.license_class$</set><set token="lic_status">$result.license_status$</set><set token="lic_edition">$result.edition$</set><set token="lic_usage">$result.capacity_text$</set><set token="lic_customer">$result.customer$</set><set token="lic_id">$result.license_id$</set><set token="lic_expires">$result.expires_text$</set><set token="lic_days">$result.days_text$</set><set token="lic_shc">$result.shc_text$</set><set token="lic_multi">$result.multi_text$</set><set token="lic_msp">$result.msp_text$</set><set token="lic_redist">$result.redist_text$</set><set token="lic_message">$result.message$</set></done>
+    <error><set token="lic_class">bad</set><set token="lic_status">UNAVAILABLE</set><set token="lic_message">License runtime could not be queried. Restart Splunk after installing or upgrading Log Source Watch, then refresh this page.</set></error>
+  </search>
 
   <row><panel><html>
     <div class="lsw-report-hero">
@@ -15,10 +35,15 @@
     <panel><single><title>Healthy components</title><search base="health_base"><query>| stats count(eval(health="OK")) AS value</query></search><option name="drilldown">none</option></single></panel>
     <panel><single><title>Needs attention</title><search base="health_base"><query>| stats count(eval(health!="OK" AND health!="WAITING FOR SETUP" AND health!="NOT INITIALIZED")) AS value</query></search><option name="drilldown">none</option></single></panel>
     <panel><single><title>Setup state</title><search base="health_base"><query>| eval setup=if(health="WAITING FOR SETUP" OR health="NOT INITIALIZED",1,0) | stats max(setup) AS s | eval value=if(s=1,"SETUP REQUIRED","READY") | fields value</query></search><option name="drilldown">none</option></single></panel>
+    <panel><single><title>License</title><search base="license_base"><query>| eval value=license_status | fields value</query></search><option name="drilldown">none</option></single></panel>
   </row>
 
+  <row><panel><html>
+    <div class="lsw-license-health $lic_class$"><div class="lsw-license-health-head"><div><span>LICENSE STATUS</span><strong>$lic_status$ · $lic_edition$</strong><small>$lic_message$</small></div><a href="about">Licensing model →</a></div><div class="lsw-license-health-grid"><div><span>Monitored source usage</span><b>$lic_usage$</b></div><div><span>Customer</span><b>$lic_customer$</b></div><div><span>License ID</span><b>$lic_id$</b></div><div><span>Expires</span><b>$lic_expires$</b><small>$lic_days$</small></div><div><span>Search Head Cluster</span><b>$lic_shc$</b></div><div><span>Multiple production SH</span><b>$lic_multi$</b></div><div><span>Managed service</span><b>$lic_msp$</b></div><div><span>Redistribution</span><b>$lic_redist$</b></div></div></div>
+  </html></panel></row>
+
   <row><panel>
-    <table>
+    <table id="health_scheduler_table">
       <title>Scheduled jobs</title>
       <search base="health_base"><query><![CDATA[
 | where component_type="scheduler"
@@ -34,7 +59,7 @@
   </panel></row>
 
   <row>
-    <panel><table>
+    <panel><table id="health_kv_table">
       <title>KV Store collections</title>
       <search base="health_base"><query><![CDATA[
 | where component_type="kvstore"
@@ -46,7 +71,7 @@
       <option name="count">20</option><option name="drilldown">none</option>
     </table></panel>
 
-    <panel><table>
+    <panel><table id="lsw_monitoring_stats">
       <title>Monitoring statistics</title>
       <search><query><![CDATA[
 | inputlookup lsw_state
@@ -54,7 +79,7 @@
         sum(eval(effective_state!="RETIRED")) AS Monitored
         sum(eval(effective_state="OK")) AS OK
         sum(eval(effective_state="SILENT")) AS Silent
-        sum(eval(effective_state="NO LOG OBSERVATION")) AS No_log_observation
+        sum(eval(effective_state="NO LOG OBSERVATION")) AS "No log"
         sum(eval(effective_state="MAINTENANCE")) AS Maintenance
         sum(eval(effective_state="RETIRED")) AS Retired
       ]]></query><refresh>60s</refresh><refreshType>delay</refreshType></search>

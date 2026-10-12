@@ -20,3 +20,5 @@ fieldset,.fieldset{border:1px solid var(--line)!important;border-radius:10px!imp
 .lsw-setup-status--required{border-color:#7d5d16;background:linear-gradient(135deg,rgba(124,89,7,.24),#0a1822)}.lsw-setup-status--required .lsw-setup-status-icon{color:#e4ad2f}.lsw-setup-status--required strong{color:#ffd877}
 .lsw-setup-status--attention{border-color:#7e3140;background:linear-gradient(135deg,rgba(119,35,51,.25),#0a1822)}.lsw-setup-status--attention .lsw-setup-status-icon{color:#ff657f}.lsw-setup-status--attention strong{color:#ffb0bd}
 .lsw-callout{display:flex;gap:8px;align-items:flex-start}.lsw-callout b{color:#dcebf2;white-space:nowrap}.lsw-callout span{color:#a9bfca}
+
+.lsw-setup-note-warning{margin-top:8px;border-left-color:#d8a11c;background:#211d0d;color:#d5c699}.lsw-setup-note-warning b{color:#f2cf6b}

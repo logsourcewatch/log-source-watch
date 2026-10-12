@@ -13,8 +13,101 @@ fieldset,.fieldset{border:1px solid var(--lsw-line)!important;border-radius:10px
 .select2-container .select2-choice,.input input,.input select,.splunk-controls input{background:#0a1721!important;border-color:#28465a!important;color:#e4eef3!important}
 #lsw_report_kpis .dashboard-panel{border:1px solid var(--lsw-line)!important;border-radius:10px!important;background:linear-gradient(180deg,#0d1d29,#0a1721)!important;overflow:hidden!important}
 #lsw_report_kpis .single-value{color:#f7fbfd!important;font-weight:800!important}.single-value .single-result{font-size:30px!important}.single-value .single-title{color:#8ba3b2!important;font-size:10px!important;text-transform:uppercase!important;letter-spacing:.06em!important}
-.splunk-table,.table{background:#0a1721!important}.table th,.splunk-table th{background:#0d202d!important;color:#8fc4de!important;border-color:#213b4d!important;font-size:10px!important;text-transform:uppercase!important;letter-spacing:.05em!important}.table td,.splunk-table td{background:#0a1721!important;color:#d7e3e9!important;border-color:#172c3a!important}.table tr:hover td,.splunk-table tr:hover td{background:#102432!important}
+.splunk-table,.table{background:#0a1721!important}.table th,.splunk-table th{background:#0d202d!important;color:#8fc4de!important;border-color:#213b4d!important;font-size:10px!important;text-transform:uppercase!important;letter-spacing:.05em!important}.table td:not([style]),.splunk-table td:not([style]){background:#0a1721!important;color:#d7e3e9!important;border-color:#172c3a!important}.table tr:hover td:not([style]),.splunk-table tr:hover td:not([style]){background:#102432!important}
 .dashboard-panel .panel-head h3,.dashboard-panel .panel-title{color:#eef6f9!important;font-size:13px!important;font-weight:800!important}
 .panel-body{background:transparent!important}.panel-element-row .dashboard-element{background:#0a1721!important;border:1px solid var(--lsw-line)!important;border-radius:10px!important;overflow:hidden!important}
 .shared-resultstable-resultstablemaster{background:#0a1721!important}.pagination{background:#0a1721!important}
 @media(max-width:800px){.lsw-report-hero{flex-direction:column;align-items:flex-start}.lsw-report-action{width:100%;box-sizing:border-box}}
+
+/* RC3 license runtime status */
+.lsw-license-health{padding:18px 20px;border:1px solid #2a5368;border-radius:12px;background:linear-gradient(135deg,#0c2230,#091823)}.lsw-license-health.good{border-color:#1f7654;background:linear-gradient(135deg,rgba(19,93,65,.30),#091823)}.lsw-license-health.community{border-color:#2a607b}.lsw-license-health.warn{border-color:#7a5b18;background:linear-gradient(135deg,rgba(112,82,12,.25),#091823)}.lsw-license-health.bad{border-color:#843349;background:linear-gradient(135deg,rgba(105,24,43,.30),#091823)}.lsw-license-health-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding-bottom:14px;border-bottom:1px solid #1b394b}.lsw-license-health-head span,.lsw-license-health-grid span{display:block;color:#7f9aaa;font-size:9px;text-transform:uppercase;letter-spacing:.07em;font-weight:800}.lsw-license-health-head strong{display:block;margin-top:4px;color:#eef7fa;font-size:18px}.lsw-license-health.good .lsw-license-health-head strong{color:#55dfa0}.lsw-license-health.bad .lsw-license-health-head strong{color:#ff8293}.lsw-license-health-head small{display:block;margin-top:4px;max-width:900px;color:#9db4c0;font-size:10px;line-height:1.45}.lsw-license-health-head a{color:#63cef4!important;text-decoration:none!important;font-size:10px;font-weight:800;white-space:nowrap}.lsw-license-health-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}.lsw-license-health-grid>div{padding:11px 12px;border:1px solid #18384a;border-radius:8px;background:#081722}.lsw-license-health-grid b{display:block;margin-top:4px;color:#dceaf0;font-size:11px;overflow-wrap:anywhere}.lsw-license-health-grid small{display:block;margin-top:3px;color:#7793a3;font-size:9px}@media(max-width:1000px){.lsw-license-health-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:620px){.lsw-license-health-head{flex-direction:column}.lsw-license-health-grid{grid-template-columns:1fr}}
+
+/* === RC5 REPORT UI POLISH: BEGIN === */
+/* KPI values: title remains in Splunk panel header, result is centered. */
+#lsw_report_kpis .dashboard-panel{min-height:168px!important}
+#lsw_report_kpis .panel-body,#lsw_report_kpis .dashboard-element,#lsw_report_kpis .splunk-single{min-height:128px!important}
+#lsw_report_kpis .single-value{min-height:128px!important;box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;padding:8px 14px 16px!important}
+#lsw_report_kpis .single-value .single-result{width:100%!important;margin:0!important;padding:0!important;text-align:center!important;font-size:34px!important;line-height:1.08!important;font-weight:800!important;white-space:normal!important;overflow-wrap:anywhere!important}
+#lsw_report_kpis .single-value .single-title,#lsw_report_kpis .single-value .single-description{text-align:center!important}
+
+/* Monitoring statistics: compact seven-column summary, no horizontal scrollbar. */
+#lsw_monitoring_stats,#lsw_monitoring_stats .panel-body,#lsw_monitoring_stats .dashboard-element,#lsw_monitoring_stats .table-wrapper,#lsw_monitoring_stats .results-table,#lsw_monitoring_stats .shared-resultstable-resultstablemaster{min-width:0!important;max-width:100%!important;width:100%!important}
+#lsw_monitoring_stats .shared-resultstable-resultstablemaster,#lsw_monitoring_stats .table-wrapper,#lsw_monitoring_stats .results-table{overflow-x:hidden!important}
+#lsw_monitoring_stats table,#lsw_monitoring_stats .table,#lsw_monitoring_stats .splunk-table{table-layout:fixed!important;width:100%!important;min-width:0!important;max-width:100%!important}
+#lsw_monitoring_stats col{width:auto!important;min-width:0!important}
+#lsw_monitoring_stats th,#lsw_monitoring_stats td,#lsw_monitoring_stats .table th,#lsw_monitoring_stats .table td,#lsw_monitoring_stats .splunk-table th,#lsw_monitoring_stats .splunk-table td{width:auto!important;min-width:0!important;max-width:none!important;padding:8px 4px!important;text-align:center!important;vertical-align:middle!important;white-space:normal!important;overflow-wrap:anywhere!important}
+#lsw_monitoring_stats th,#lsw_monitoring_stats .table th,#lsw_monitoring_stats .splunk-table th{font-size:9px!important;line-height:1.15!important;letter-spacing:.025em!important}
+#lsw_monitoring_stats td,#lsw_monitoring_stats .table td,#lsw_monitoring_stats .splunk-table td{font-size:13px!important;line-height:1.25!important;font-weight:700!important}
+@media(max-width:1400px){#lsw_report_kpis .single-value .single-result{font-size:32px!important}#lsw_monitoring_stats th,#lsw_monitoring_stats .table th,#lsw_monitoring_stats .splunk-table th{font-size:8.5px!important;padding-left:2px!important;padding-right:2px!important}}
+@media(max-width:900px){#lsw_report_kpis .dashboard-panel{min-height:150px!important}#lsw_report_kpis .single-value{min-height:114px!important}#lsw_report_kpis .single-value .single-result{font-size:28px!important}}
+/* === RC5 REPORT UI POLISH: END === */
+
+/* === RC6 REPORT COLOR FIX: BEGIN === */
+/* Preserve Splunk table formatter cells (color map / status highlights). */
+.table td[style],.splunk-table td[style]{color:#f7fbfd!important;font-weight:800!important;border-color:#172c3a!important}
+.table td[style*="background"],.splunk-table td[style*="background"]{box-shadow:inset 0 0 0 9999px transparent;border-radius:6px}
+
+/* Fallback support if Splunk uses formatter classes instead of inline styles. */
+.table td[class*="lt_"],.splunk-table td[class*="lt_"],
+.table td[class*="range"],.splunk-table td[class*="range"],
+.table td[class*="format"],.splunk-table td[class*="format"]{color:#f7fbfd!important;font-weight:800!important}
+
+/* Audit trail action + status cells should read like badges. */
+#audit_table td[style],#audit_table td[class*="lt_"],#audit_table td[class*="range"],#audit_table td[class*="format"],
+#health_scheduler_table td[style],#health_scheduler_table td[class*="lt_"],#health_scheduler_table td[class*="range"],#health_scheduler_table td[class*="format"],
+#health_kv_table td[style],#health_kv_table td[class*="lt_"],#health_kv_table td[class*="range"],#health_kv_table td[class*="format"]{text-transform:none!important;letter-spacing:0!important}
+/* === RC6 REPORT COLOR FIX: END === */
+
+/* === RC7 REPORT TEXT COLOR FIX: BEGIN === */
+/*
+ * Text-only status colors for Audit Trail and Application Health.
+ * Splunk's color formatter still supplies the semantic palette in an inline
+ * background-color. We neutralize that fill, then mirror the palette into
+ * the foreground color. This keeps the XML maps authoritative without the
+ * large colored cell blocks.
+ */
+#health_scheduler_table td[style],
+#health_kv_table td[style],
+#audit_table td[style]{
+  background:#0a1721!important;
+  background-color:#0a1721!important;
+  box-shadow:none!important;
+  border-radius:0!important;
+  color:#d7e3e9!important;
+  font-weight:800!important;
+}
+
+/* green: OK / ACTIVE / SOURCE ENROLLED */
+#health_scheduler_table td[style*="#38c982"],#health_scheduler_table td[style*="56, 201, 130"],#health_scheduler_table td[style*="56,201,130"],
+#health_kv_table td[style*="#38c982"],#health_kv_table td[style*="56, 201, 130"],#health_kv_table td[style*="56,201,130"],
+#audit_table td[style*="#38c982"],#audit_table td[style*="56, 201, 130"],#audit_table td[style*="56,201,130"]{color:#38c982!important}
+
+/* cyan: waiting / new / threshold */
+#health_scheduler_table td[style*="#5ab8e8"],#health_scheduler_table td[style*="90, 184, 232"],#health_scheduler_table td[style*="90,184,232"],
+#health_kv_table td[style*="#5ab8e8"],#health_kv_table td[style*="90, 184, 232"],#health_kv_table td[style*="90,184,232"],
+#audit_table td[style*="#5ab8e8"],#audit_table td[style*="90, 184, 232"],#audit_table td[style*="90,184,232"]{color:#5ab8e8!important}
+
+/* violet: maintenance */
+#health_scheduler_table td[style*="#8a6de9"],#health_scheduler_table td[style*="138, 109, 233"],#health_scheduler_table td[style*="138,109,233"],
+#health_kv_table td[style*="#8a6de9"],#health_kv_table td[style*="138, 109, 233"],#health_kv_table td[style*="138,109,233"],
+#audit_table td[style*="#8a6de9"],#audit_table td[style*="138, 109, 233"],#audit_table td[style*="138,109,233"]{color:#8a6de9!important}
+
+/* amber: warning / lifecycle / no-log */
+#health_scheduler_table td[style*="#d8a11c"],#health_scheduler_table td[style*="216, 161, 28"],#health_scheduler_table td[style*="216,161,28"],
+#health_kv_table td[style*="#d8a11c"],#health_kv_table td[style*="216, 161, 28"],#health_kv_table td[style*="216,161,28"],
+#audit_table td[style*="#d8a11c"],#audit_table td[style*="216, 161, 28"],#audit_table td[style*="216,161,28"]{color:#d8a11c!important}
+
+/* stale amber */
+#health_scheduler_table td[style*="#e2a12a"],#health_scheduler_table td[style*="226, 161, 42"],#health_scheduler_table td[style*="226,161,42"],
+#health_kv_table td[style*="#e2a12a"],#health_kv_table td[style*="226, 161, 42"],#health_kv_table td[style*="226,161,42"]{color:#e2a12a!important}
+
+/* red: error / silent */
+#health_scheduler_table td[style*="#e25050"],#health_scheduler_table td[style*="226, 80, 80"],#health_scheduler_table td[style*="226,80,80"],
+#health_kv_table td[style*="#e25050"],#health_kv_table td[style*="226, 80, 80"],#health_kv_table td[style*="226,80,80"],
+#audit_table td[style*="#e25050"],#audit_table td[style*="226, 80, 80"],#audit_table td[style*="226,80,80"]{color:#e25050!important}
+
+/* muted: empty / retired / not applicable */
+#health_scheduler_table td[style*="#8799a7"],#health_scheduler_table td[style*="135, 153, 167"],#health_scheduler_table td[style*="135,153,167"],
+#health_kv_table td[style*="#8799a7"],#health_kv_table td[style*="135, 153, 167"],#health_kv_table td[style*="135,153,167"],
+#audit_table td[style*="#8799a7"],#audit_table td[style*="135, 153, 167"],#audit_table td[style*="135,153,167"]{color:#8799a7!important}
+/* === RC7 REPORT TEXT COLOR FIX: END === */

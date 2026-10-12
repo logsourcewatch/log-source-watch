@@ -1,4 +1,4 @@
-<dashboard version="1.1" theme="dark" hideEdit="true" stylesheet="lsw_about.css" script="lsw_about_license_2026101209.js">
+<dashboard version="1.1" theme="dark" hideEdit="true" stylesheet="lsw_about.css">
   <label>About</label>
   <description>Technical reference, data model, operation semantics, searches, setup and licensing for Log Source Watch.</description>
 
@@ -9,7 +9,7 @@
         <h1>Architecture, data flow and operational behavior</h1>
         <p>This page documents the runtime behavior of Log Source Watch 4.9.3: source identity, KV Store collections, management actions, discovery and enrollment, scheduled searches, reports, first-run setup and licensing.</p>
       </div>
-      <div class="lsw-about-version"><b>4.9.3</b>Build 2026101210</div>
+      <div class="lsw-about-version"><b>4.9.3</b>Build 2026101212</div>
     </div>
   </html></panel></row>
 
@@ -164,6 +164,7 @@ iseval = 0</code></pre>
   <row><panel><html>
     <div class="lsw-about-card">
       <h2>5. Initial Setup</h2>
+      <div class="lsw-about-note warning"><b>Splunk query confirmation warnings:</b> Splunk can require confirmation before packaged administrative searches or custom commands run. Accept the warning only when you intentionally initiated the corresponding Log Source Watch action. This is expected for protected write workflows and does not mean the packaged search is failing.</div>
       <p>On a clean installation <code>app.conf</code> has <code>is_configured=0</code> and <code>setup_view=initial_setup</code>. Splunk therefore directs the administrator to Initial Setup before normal use.</p>
       <ol>
         <li>KV Store collections and lookup definitions are loaded from the packaged schema.</li>
@@ -265,6 +266,8 @@ search = | inputlookup lsw_audit | addinfo | where (info_min_time=0 OR event_tim
       <div class="lsw-about-note license"><b>Community Edition:</b> Log Source Watch may be used free of charge for personal, internal and commercial use for the licensee's own operations with up to <b>100 Monitored Sources</b>. A Monitored Source is one unique <code>index + host</code> combination whose lifecycle status is <code>active</code> or <code>maintenance</code>. <code>retired</code> sources do not count toward licensed capacity.</div>
       <p>A paid Log Source Watch commercial license is required for more than 100 Monitored Sources, Splunk Search Head Cluster deployment, multiple production search heads, MSP/MSSP or other managed/hosted service use, and redistribution/resale/bundling. Paid editions may include <b>Professional</b>, <b>Enterprise</b>, <b>Enterprise Plus</b> and <b>Service Provider</b> entitlements.</p>
 
+      <div class="lsw-about-note"><b>Current environment status:</b> runtime license validity, monitored-source usage, expiry and deployment entitlements are shown under <b>Reports → Application Health</b>. About documents the licensing model; Application Health is the operational source of truth for this Splunk instance.</div>
+
       <h3>License editions</h3>
       <p>The edition names describe the standard commercial model. A signed license file is authoritative for paid capacity and deployment rights.</p>
       <table class="lsw-about-table lsw-license-tiers">
@@ -279,26 +282,15 @@ search = | inputlookup lsw_audit | addinfo | where (info_min_time=0 OR event_tim
       <div class="lsw-about-note"><b>No paid license file is required for Community Edition.</b> When <code>local/lsw_license.json</code> is absent, Log Source Watch operates automatically with a 100 Monitored Source capacity. Existing monitoring is not disabled when capacity is exceeded; actions that would add licensed capacity are blocked.</div>
       <p>Paid entitlements are represented by a cryptographically signed license file installed as <code>$SPLUNK_HOME/etc/apps/logsource_watch/local/lsw_license.json</code>. The app contains only the public verification key. The private issuer key must never be distributed with the app or stored on a production search head.</p>
       <p>When capacity is reached, existing registered sources continue to be monitored. Operations that would consume additional capacity — such as discovery enrollment, activating a retired source, or placing a retired source into maintenance — are blocked until capacity is available or a suitable paid license is installed.</p>
+      <p>When a valid paid license expires, existing registered sources continue to be monitored. Log Source Watch blocks actions that would increase monitored-source capacity until a renewed license is installed. Overview raises an expiry warning during the final 30 days and Application Health shows the exact runtime status.</p>
       <table class="lsw-about-table">
         <tr><th>License component</th><th>Purpose</th></tr>
         <tr><td><code>| lswlicense</code></td><td>Read-only license status command. Verifies the signed file with the public RSA key embedded in the app and returns edition, capacity, validity, deployment rights and status.</td></tr>
-        <tr><td><code>lswlicenseguard</code></td><td>Write-path guard used by Initial Setup. It blocks initialization when projected monitored-source capacity would exceed the effective license.</td></tr>
+        <tr><td><code>lswlicenseguard</code></td><td>Server-side capacity guard helper for search-based mutation workflows. Initial Setup and the interactive management workspaces perform their own license check before authenticated KV Store writes.</td></tr>
         <tr><td>Management / Bulk / Discover</td><td>Interactive write paths check license capacity before an action can increase the number of ACTIVE or MAINTENANCE sources.</td></tr>
         <tr><td><code>local/lsw_license.json</code></td><td>Optional signed paid entitlement. When absent, Community Edition applies automatically with a 100-source capacity.</td></tr>
       </table>
       <p>The bundled <code>LICENSE.txt</code> is authoritative. A separately executed commercial agreement supersedes the bundled terms only to the extent stated in that agreement. Log Source Watch is independently developed and is not affiliated with or endorsed by Splunk Inc.</p>
-    </div>
-  </html></panel></row>
-
-  <row><panel><html>
-    <div class="lsw-about-card lsw-license-status-card">
-      <div class="lsw-license-status-head">
-        <div><h2>License status and capacity</h2><p>Community works without a license file. Signed paid entitlements are detected when the license runtime is available.</p></div>
-        <button id="lsw-license-refresh" class="lsw-license-refresh" type="button">Refresh</button>
-      </div>
-      <div id="lsw-license-status-root" class="lsw-license-status-root">
-        <div class="lsw-license-loading">Loading license status…</div>
-      </div>
     </div>
   </html></panel></row>
 

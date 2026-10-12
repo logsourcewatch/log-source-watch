@@ -68,6 +68,8 @@
 | table Time User Scope Action index host Old_status New_status Old_threshold New_threshold Old_maintenance New_maintenance Origin details
     ]]></query></search>
     <format type="color" field="Action"><colorPalette type="map">{"SOURCE ENROLLED":"#38c982","THRESHOLD":"#5ab8e8","MAINTENANCE":"#8a6de9","LIFECYCLE":"#d8a11c","MAINTENANCE EXPIRED":"#8a6de9"}</colorPalette></format>
+    <format type="color" field="Old_status"><colorPalette type="map">{"active":"#38c982","maintenance":"#8a6de9","retired":"#8799a7","new":"#5ab8e8","silent":"#e25050","no_log_observation":"#d8a11c","-":"#8799a7"}</colorPalette></format>
+    <format type="color" field="New_status"><colorPalette type="map">{"active":"#38c982","maintenance":"#8a6de9","retired":"#8799a7","new":"#5ab8e8","silent":"#e25050","no_log_observation":"#d8a11c","-":"#8799a7"}</colorPalette></format>
     <option name="count">50</option><option name="drilldown">none</option><option name="wrap">true</option>
   </table></panel></row>
 </form>

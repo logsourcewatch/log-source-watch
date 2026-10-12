@@ -249,7 +249,7 @@ require([
         return runSearch(licenseStatusQuery(),30000).then(function(rows){
             var x=rows&&rows[0]?rows[0]:{};
             if(Number(x.deployment_compliant===undefined?1:x.deployment_compliant)!==1)throw new Error(x.message||"Current deployment is not permitted by the active Log Source Watch license");
-            var current=monitoredCountLocal(),max=Number(x.max_monitored_sources||100),projected=current+increment;
+            if(String(x.license_status||"").toUpperCase()==="EXPIRED")throw new Error(x.message||"Paid Log Source Watch license has expired. Existing monitoring continues, but monitored-source capacity cannot be increased until renewal.");var current=monitoredCountLocal(),max=Number(x.max_monitored_sources||100),projected=current+increment;
             if(max>0&&projected>max)throw new Error("License capacity exceeded: this action would result in "+projected.toLocaleString()+" monitored sources, but "+(x.edition||"Community")+" permits "+max.toLocaleString()+". Retired sources do not count toward capacity.");
             return {edition:x.edition||"Community",current:current,max:max,projected:projected,runtime_fallback:false};
         }).catch(function(err){
