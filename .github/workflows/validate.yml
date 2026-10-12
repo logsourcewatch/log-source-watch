@@ -1,0 +1,41 @@
+name: Validate
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate public app
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Validate repository
+        run: python scripts/validate.py
+
+      - name: Build release candidate
+        run: python scripts/build_release.py --version ci
+
+      - name: Show archive
+        run: |
+          tar -tzf dist/logsource_watch-ci.tgz | head -80
+          cat dist/logsource_watch-ci.tgz.sha256

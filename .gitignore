@@ -1,0 +1,27 @@
+# Splunk local/runtime state
+app/logsource_watch/local/
+app/logsource_watch/var/
+app/logsource_watch/**/*.pyc
+**/__pycache__/
+
+# License/customer secrets
+issuer_key.json
+**/Issued Licenses/
+issued_licenses.csv
+licenses.csv
+lsw_license.json
+*.lsw-license.json
+
+# Build outputs
+dist/
+build/
+*.tgz
+*.zip
+
+# Editor/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp

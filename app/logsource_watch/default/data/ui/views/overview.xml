@@ -1,0 +1,9 @@
+<dashboard version="1.1" theme="dark" hideEdit="true" stylesheet="lsw_home.css" script="lsw_home_2026101209.js">
+  <label>Overview</label>
+  <description>Operational monitoring for log source availability and silence detection.</description>
+  <row><panel><html>
+    <div id="lsw-home-root" class="lsw-premium-home" aria-live="polite">
+      <div class="lsw-home-loading"><div class="lsw-home-spinner"></div><div><strong>Loading operational overview</strong><span>Reading source inventory and latest observations…</span></div></div>
+    </div>
+  </html></panel></row>
+</dashboard>

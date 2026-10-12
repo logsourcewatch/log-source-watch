@@ -1,0 +1,10 @@
+<nav search_view="search">
+  <view name="overview" default="true"/>
+  <view name="manage_hosts"/>
+  <collection label="Reports">
+    <view name="silent_hosts"/>
+    <view name="health"/>
+    <view name="audit_trail"/>
+  </collection>
+  <view name="about"/>
+</nav>

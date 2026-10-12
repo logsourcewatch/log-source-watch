@@ -1,0 +1,200 @@
+<form version="1.1" theme="dark" stylesheet="lsw_setup.css" script="lsw_setup_2026101209.js">
+  <label>Initial Setup</label>
+  <description>First-run initialization of KV Store inventory, last-seen baseline and canonical monitoring state.</description>
+  <init>
+    <set token="setup_index">-</set>
+    <set token="setup_earliest">-24h</set>
+    <set token="setup_threshold">7200</set>
+    <set token="setup_banner_class">lsw-setup-status--checking</set>
+    <set token="setup_banner_title">Checking installation state…</set>
+    <set token="setup_banner_detail">Verifying inventory, last-seen observations and canonical state.</set>
+  </init>
+  <fieldset submitButton="false" autoRun="true">
+    <input type="dropdown" token="setup_index" searchWhenChanged="true">
+      <label>Index</label>
+      <choice value="-">Select index</choice>
+      <search>
+        <query>| eventcount summarize=false index=* | stats sum(count) AS events BY index | where index!="_internal" AND index!="_audit" AND index!="_introspection" | sort 0 index | fields index</query>
+      </search>
+      <fieldForLabel>index</fieldForLabel><fieldForValue>index</fieldForValue><default>-</default>
+    </input>
+    <input type="dropdown" token="setup_earliest" searchWhenChanged="true">
+      <label>Baseline lookback</label>
+      <choice value="-1h">Last 1 hour</choice><choice value="-6h">Last 6 hours</choice><choice value="-24h">Last 24 hours</choice><choice value="-7d">Last 7 days</choice><choice value="-30d">Last 30 days (heavy)</choice><default>-24h</default>
+    </input>
+    <input type="dropdown" token="setup_threshold" searchWhenChanged="true">
+      <label>Default silence threshold</label>
+      <choice value="900">15 minutes</choice><choice value="1800">30 minutes</choice><choice value="3600">60 minutes</choice><choice value="7200">120 minutes</choice><choice value="14400">240 minutes</choice><choice value="21600">360 minutes</choice><choice value="43200">720 minutes</choice><choice value="86400">1440 minutes</choice><default>7200</default>
+    </input>
+    <input type="link" token="setup_action" searchWhenChanged="true">
+      <label>Initialize</label><choice value="run">INITIALIZE LOG SOURCE WATCH</choice>
+      <change><condition value="run"><set token="run_index">$setup_index$</set><set token="run_earliest">$setup_earliest$</set><set token="run_threshold">$setup_threshold$</set><eval token="run_nonce">now()</eval></condition></change>
+    </input>
+  </fieldset>
+
+
+  <search id="setup_readiness">
+    <query><![CDATA[
+| inputlookup lsw_inventory
+| stats count AS Inventory
+| appendcols [ | inputlookup lsw_lastseen | stats count AS Last_seen ]
+| appendcols [ | inputlookup lsw_state | stats count AS State ]
+| appendcols [ | inputlookup lsw_audit | stats count AS Audit ]
+| eval Missing_observation=if(Inventory>Last_seen,Inventory-Last_seen,0)
+| eval Banner_class=case(
+    Inventory=0,"lsw-setup-status--required",
+    State!=Inventory,"lsw-setup-status--attention",
+    true(),"lsw-setup-status--success"
+  )
+| eval Banner_title=case(
+    Inventory=0,"Initial Setup Required",
+    State!=Inventory,"Initial Setup Needs Attention",
+    true(),"Log Source Watch Successfully Initialized"
+  )
+| eval Banner_detail=case(
+    Inventory=0,"No monitored sources are registered yet. Select an index, baseline and silence threshold, then initialize Log Source Watch.",
+    State!=Inventory,"Inventory contains ".Inventory." sources but canonical state contains ".State.". Rebuild the state before relying on monitoring results.",
+    Missing_observation>0,"Monitoring is initialized for ".Inventory." sources. ".Last_seen." currently have a last-seen observation and ".Missing_observation." are tracked as NO LOG OBSERVATION.",
+    true(),"Monitoring is initialized for ".Inventory." sources and canonical state is complete."
+  )
+| fields Inventory Last_seen State Audit Banner_class Banner_title Banner_detail
+    ]]></query>
+    <refresh>30s</refresh><refreshType>delay</refreshType>
+    <done>
+      <set token="setup_banner_class">$result.Banner_class$</set>
+      <set token="setup_banner_title">$result.Banner_title$</set>
+      <set token="setup_banner_detail">$result.Banner_detail$</set>
+    </done>
+  </search>
+
+  <search id="setup_inventory" depends="$run_nonce$">
+    <query><![CDATA[
+| tstats latest(_time) AS seen WHERE index=$run_index|s$ earliest=$run_earliest|s$ latest=now BY index host
+| eval request_id=$run_nonce|s$
+| where len(request_id)>0 AND $run_index|s$!="-" AND len(host)>0 AND len(host)<=255 AND NOT match(host,"[\x00-\x1F\x7F*?]")
+| eval _key=sha256(index."|".host), setup_threshold=tonumber($run_threshold|s$), setup_now=now()
+| lookup local=true lsw_inventory _key OUTPUT status AS old_status threshold_seconds AS old_threshold maintenance_until AS old_maintenance change_ref AS old_ref created_at AS old_created
+| eval license_increment=if(isnull(old_status),1,0)
+| lswlicenseguard increment_field=license_increment
+| eval status=coalesce(old_status,"active"), threshold_seconds=coalesce(old_threshold,setup_threshold), maintenance_until=coalesce(old_maintenance,0), change_ref=if(isnull(old_status),"setup-initial-enrollment",coalesce(old_ref,"setup-refresh")), created_at=coalesce(old_created,setup_now), updated_at=setup_now
+| fields _key index host status threshold_seconds maintenance_until change_ref created_at updated_at
+| outputlookup append=true key_field=_key allow_updates=true override_if_empty=false lsw_inventory
+| stats count AS rows
+    ]]></query>
+    <done><set token="inventory_rows">$result.rows$</set><eval token="seed_nonce">now()</eval><unset token="run_nonce"/><unset token="setup_action"/><unset token="form.setup_action"/></done>
+    <error><set token="setup_message">Inventory initialization failed. Check license capacity, index access and KV Store write permissions.</set><unset token="run_nonce"/></error>
+  </search>
+
+  <search id="setup_lastseen" depends="$seed_nonce$">
+    <query><![CDATA[
+| tstats latest(_time) AS seen WHERE index=$run_index|s$ earliest=$run_earliest|s$ latest=now BY index host
+| where len(host)>0 AND len(host)<=255 AND NOT match(host,"[\x00-\x1F\x7F*?]")
+| eval _key=sha256(index."|".host)
+| lookup local=true lsw_inventory _key OUTPUT status AS inventory_status
+| where inventory_status="active" OR inventory_status="maintenance"
+| lookup local=true lsw_lastseen _key OUTPUT last_seen AS old_seen
+| eval last_seen=if(isnull(old_seen),seen,if(seen>old_seen,seen,old_seen)), updated_at=now()
+| fields _key index host last_seen updated_at
+| outputlookup append=true key_field=_key allow_updates=true override_if_empty=false lsw_lastseen
+| stats count AS rows
+    ]]></query>
+    <done><set token="lastseen_rows">$result.rows$</set><eval token="state_nonce">now()</eval><unset token="seed_nonce"/></done>
+    <error><set token="setup_message">last_seen initialization failed. Check Job Inspector and lsw_lastseen.</set><unset token="seed_nonce"/></error>
+  </search>
+
+  <search id="setup_state" depends="$state_nonce$">
+    <query><![CDATA[
+| inputlookup lsw_inventory
+| lookup local=true lsw_lastseen _key OUTPUT last_seen updated_at AS lastseen_updated_at
+| `lsw_calculate_state`
+| eval state_updated_at=now()
+| fields _key index host status threshold_seconds threshold_minutes maintenance_until change_ref last_seen lastseen_updated_at age_seconds age_minutes effective_state alarm state_updated_at
+| outputlookup append=false key_field=_key allow_updates=true override_if_empty=true lsw_state
+| stats count AS rows
+    ]]></query>
+    <done><set token="state_rows">$result.rows$</set><eval token="verify_nonce">now()</eval><unset token="state_nonce"/></done>
+    <error><set token="setup_message">State build failed. Check lsw_inventory, lsw_lastseen and lsw_calculate_state.</set><unset token="state_nonce"/></error>
+  </search>
+
+  <search id="setup_verify" depends="$verify_nonce$">
+    <query><![CDATA[
+| inputlookup lsw_inventory | stats count AS inventory
+| appendcols [ | inputlookup lsw_lastseen | stats count AS lastseen ]
+| appendcols [ | inputlookup lsw_state | stats count AS state ]
+| appendcols [ | inputlookup lsw_audit | stats count AS audit ]
+| eval missing_observation=if(inventory>lastseen,inventory-lastseen,0)
+| eval status=case(inventory=0,"SETUP REQUIRED",state!=inventory,"ATTENTION",true(),"READY")
+| eval message=case(
+    status="SETUP REQUIRED","No sources were enrolled.",
+    status="ATTENTION","Inventory contains ".inventory." sources but canonical state contains ".state.". Rebuild canonical state before relying on monitoring results.",
+    missing_observation>0,"Initialization complete. ".inventory." sources are registered; ".missing_observation." are currently NO LOG OBSERVATION.",
+    true(),"Initialization complete. Log Source Watch is ready."
+  )
+| fields status inventory lastseen state audit message
+    ]]></query>
+    <done><set token="setup_message">$result.message$</set><unset token="verify_nonce"/></done>
+  </search>
+
+
+  <row id="lsw_setup_intro"><panel><html>
+    <div class="lsw-setup-hero">
+      <div>
+        <div class="lsw-setup-eyebrow">LOG SOURCE WATCH — FIRST RUN</div>
+        <h1>Initial Setup</h1>
+        <p>Verify the packaged KV Store schema, enroll the first source scope, seed latest observations and build canonical state.</p>
+      </div>
+      <div class="lsw-setup-badge">4.9.3 · build 2026101209</div>
+    </div>
+    <nav class="lsw-setup-tabs" aria-label="Management workspace">
+      <a href="manage_hosts">Sources</a>
+      <a href="bulk_management">Bulk Actions</a>
+      <a href="add_log_sources">Discover</a>
+      <a class="active" href="initial_setup">Initial Setup</a>
+    </nav>
+    <div class="lsw-setup-note"><b>Safe first run:</b> recurring schedulers are enabled but last-seen collection remains fail-closed until inventory contains active or maintenance sources.</div>
+    <div class="lsw-setup-status $setup_banner_class$">
+      <div class="lsw-setup-status-icon" aria-hidden="true">●</div>
+      <div><strong>$setup_banner_title$</strong><span>$setup_banner_detail$</span></div>
+    </div>
+  </html></panel></row>
+
+  <row>
+    <panel><title>Installation state</title>
+      <table><search><query><![CDATA[
+| inputlookup lsw_inventory | stats count AS Inventory
+| appendcols [ | inputlookup lsw_lastseen | stats count AS Last_seen ]
+| appendcols [ | inputlookup lsw_state | stats count AS State ]
+| appendcols [ | inputlookup lsw_audit | stats count AS Audit ]
+| eval Status=case(Inventory=0,"SETUP REQUIRED",State!=Inventory,"ATTENTION",true(),"READY")
+| table Status Inventory Last_seen State Audit
+      ]]></query><refresh>30s</refresh><refreshType>delay</refreshType></search><option name="count">1</option><option name="drilldown">none</option></table>
+      <html depends="$setup_message$"><div class="lsw-callout"><b>Latest initialization attempt</b><span>$setup_message$</span></div></html>
+    </panel>
+  </row>
+
+  <row>
+    <panel><title>KV Store verification</title>
+      <table><search><query><![CDATA[
+| inputlookup lsw_inventory | stats count AS records | eval collection="lsw_inventory"
+| append [ | inputlookup lsw_lastseen | stats count AS records | eval collection="lsw_lastseen" ]
+| append [ | inputlookup lsw_state | stats count AS records | eval collection="lsw_state" ]
+| append [ | inputlookup lsw_audit | stats count AS records | eval collection="lsw_audit" ]
+| eval availability="OK" | table collection availability records
+      ]]></query></search><option name="count">10</option><option name="drilldown">none</option></table>
+    </panel>
+    <panel><title>Preview selected index</title>
+      <table><search><query><![CDATA[
+| tstats latest(_time) AS last_seen WHERE index=$setup_index|s$ earliest=$setup_earliest|s$ latest=now BY index host
+| where $setup_index|s$!="-" AND len(host)>0
+| eval _key=sha256(index."|".host)
+| lookup local=true lsw_inventory _key OUTPUT status AS existing_status threshold_seconds AS existing_threshold
+| eval registration=if(isnull(existing_status),"NEW","REGISTERED"), last_seen=strftime(last_seen,"%Y-%m-%d %H:%M:%S")
+| table index host registration existing_status existing_threshold last_seen | sort 0 registration host
+      ]]></query></search><option name="count">20</option><option name="drilldown">none</option></table>
+    </panel>
+  </row>
+
+  <row><panel><title>What Initialize does</title><html>
+    <div class="lsw_tech_card"><p><b>Initialize Log Source Watch</b> enrolls the selected index/host sources, seeds <code>lsw_lastseen</code>, builds <code>lsw_state</code> immediately, and leaves the packaged five-minute schedulers running for ongoing monitoring.</p><p>KV Store collections and fields are defined by the application package. No manual KV Store creation is required.</p></div>
+  </html></panel></row>
+</form>

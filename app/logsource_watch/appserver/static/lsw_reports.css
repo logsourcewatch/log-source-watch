@@ -1,0 +1,20 @@
+
+:root{--lsw-bg:#07121b;--lsw-panel:#0c1a25;--lsw-panel2:#102331;--lsw-line:#1d3444;--lsw-line2:#29485d;--lsw-text:#edf5f8;--lsw-muted:#8da5b5;--lsw-cyan:#58c7ef;--lsw-green:#38c982;--lsw-red:#e25050;--lsw-amber:#d8a11c;--lsw-violet:#8a6de9}
+body,.dashboard-body{background:var(--lsw-bg)!important;color:var(--lsw-text)!important}
+.dashboard-body{padding:0 14px 28px}
+.dashboard-header{padding:16px 4px 8px}.dashboard-header h2{color:#f4f8fa!important;font-weight:800}.dashboard-header .description{color:var(--lsw-muted)!important}
+.dashboard-row .dashboard-panel{background:transparent!important;border:0!important;box-shadow:none!important}
+.dashboard-row{margin-bottom:12px!important}.panel-element-row{background:transparent!important}
+.lsw-report-hero{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:22px 24px;border:1px solid var(--lsw-line);border-radius:12px;background:linear-gradient(135deg,#0d2636,#0a1924 68%);box-shadow:0 18px 50px rgba(0,0,0,.18)}
+.lsw-report-eyebrow{font-size:10px;letter-spacing:.18em;color:var(--lsw-cyan);font-weight:900}.lsw-report-hero h1{margin:6px 0 4px;color:#fff;font-size:26px;line-height:1.1}.lsw-report-hero p{margin:0;max-width:820px;color:#9eb4c2;font-size:12px;line-height:1.55}
+.lsw-report-action{display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 14px;border:1px solid #2f637f;border-radius:8px;background:#123247;color:#8bdafb!important;text-decoration:none!important;font-weight:800;font-size:11px;white-space:nowrap}
+.lsw-report-action:hover{background:#173e56}.lsw-report-meta{display:flex;flex-direction:column;gap:2px;padding:10px 13px;border:1px solid #28465a;border-radius:8px;background:#0b1c27;color:#9ab0bd;font-size:10px}.lsw-report-meta b{color:#dfeaf0}
+fieldset,.fieldset{border:1px solid var(--lsw-line)!important;border-radius:10px!important;background:#0a1822!important;padding:12px!important;margin:0 0 12px!important}.fieldset .input{margin-right:12px!important}.fieldset label{color:#91a7b6!important;font-size:10px!important;text-transform:uppercase;letter-spacing:.06em;font-weight:800!important}
+.select2-container .select2-choice,.input input,.input select,.splunk-controls input{background:#0a1721!important;border-color:#28465a!important;color:#e4eef3!important}
+#lsw_report_kpis .dashboard-panel{border:1px solid var(--lsw-line)!important;border-radius:10px!important;background:linear-gradient(180deg,#0d1d29,#0a1721)!important;overflow:hidden!important}
+#lsw_report_kpis .single-value{color:#f7fbfd!important;font-weight:800!important}.single-value .single-result{font-size:30px!important}.single-value .single-title{color:#8ba3b2!important;font-size:10px!important;text-transform:uppercase!important;letter-spacing:.06em!important}
+.splunk-table,.table{background:#0a1721!important}.table th,.splunk-table th{background:#0d202d!important;color:#8fc4de!important;border-color:#213b4d!important;font-size:10px!important;text-transform:uppercase!important;letter-spacing:.05em!important}.table td,.splunk-table td{background:#0a1721!important;color:#d7e3e9!important;border-color:#172c3a!important}.table tr:hover td,.splunk-table tr:hover td{background:#102432!important}
+.dashboard-panel .panel-head h3,.dashboard-panel .panel-title{color:#eef6f9!important;font-size:13px!important;font-weight:800!important}
+.panel-body{background:transparent!important}.panel-element-row .dashboard-element{background:#0a1721!important;border:1px solid var(--lsw-line)!important;border-radius:10px!important;overflow:hidden!important}
+.shared-resultstable-resultstablemaster{background:#0a1721!important}.pagination{background:#0a1721!important}
+@media(max-width:800px){.lsw-report-hero{flex-direction:column;align-items:flex-start}.lsw-report-action{width:100%;box-sizing:border-box}}

@@ -1,0 +1,19 @@
+<dashboard version="1.1" theme="dark" hideEdit="true" stylesheet="lsw_manage.css" script="lsw_manage_2026101209.js">
+  <label>Management</label>
+  <description>Interactive source management workspace for lifecycle, thresholds and maintenance.</description>
+  <row>
+    <panel>
+      <html>
+        <div id="lsw-manage-root" class="lsw-manage-root" aria-live="polite">
+          <div class="lsw-boot-card">
+            <div class="lsw-spinner"></div>
+            <div>
+              <strong>Loading Log Source Watch</strong>
+              <span>Preparing source inventory and policy controls…</span>
+            </div>
+          </div>
+        </div>
+      </html>
+    </panel>
+  </row>
+</dashboard>

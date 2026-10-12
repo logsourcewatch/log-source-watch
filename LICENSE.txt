@@ -1,0 +1,131 @@
+LOG SOURCE WATCH COMMUNITY / COMMERCIAL LICENSE v1.3
+
+Copyright (c) 2026 Jonni Nieminen. All rights reserved.
+
+1. DEFINITIONS
+"Monitored Source" means one unique combination of Splunk index and host that
+is registered in Log Source Watch with lifecycle status ACTIVE or MAINTENANCE.
+A RETIRED source does not count toward licensed capacity.
+
+"Splunk Environment" means the production Splunk deployment in which Log
+Source Watch is installed or from which it is operated.
+
+2. COMMUNITY LICENSE GRANT
+Subject to these terms, the copyright holder grants a non-exclusive,
+non-transferable, revocable license to install and use Log Source Watch
+Community Edition free of charge for personal, internal, and commercial use
+for the licensee's own operations when all of the following are true:
+(a) no more than 100 Monitored Sources are registered for monitoring;
+(b) the deployment is not a Splunk Search Head Cluster;
+(c) the software is not operated across multiple production search heads; and
+(d) the software is not used to provide a managed, hosted, MSP, MSSP, or other
+    third-party service.
+
+3. PAID LICENSE REQUIRED
+A separate paid Log Source Watch commercial license is required for any of the
+following:
+(a) more than 100 Monitored Sources;
+(b) deployment in a Splunk Search Head Cluster;
+(c) deployment across more than one production search head or centrally
+    managed production search-head deployment;
+(d) use in a managed service, hosted service, MSP/MSSP offering, or other
+    service provided to third parties;
+(e) resale, sublicensing, redistribution, white-labeling, or bundling the
+    software into another product or service; or
+(f) any use expressly agreed by the parties to be covered by a paid license.
+
+Paid license editions may include Professional, Enterprise, Enterprise Plus, Service Provider,
+or other editions offered by the copyright holder. Capacity, deployment rights,
+term, support rights, and other entitlements are defined by the signed license
+file and/or the applicable written commercial agreement.
+
+Paid license editions are normally offered as follows:
+
+"Professional" is intended for standalone production deployments that require
+more than Community capacity. A standard Professional license typically covers
+101 to 1,000 Monitored Sources in one production environment. SHC, multiple
+production environments, managed-service use, and redistribution are not
+included unless expressly enabled by the signed entitlement or written agreement.
+
+"Enterprise" is intended for large, clustered, or distributed internal
+deployments and typically covers 1,001 to 5,000 Monitored Sources. SHC and
+multiple production environments may be permitted by the signed entitlement.
+Managed-service and redistribution rights remain separate unless expressly granted.
+
+"Enterprise Plus" is intended for deployments above 5,000 Monitored Sources or
+for custom/unlimited capacity and deployment scope. Capacity and deployment
+rights are defined by the signed entitlement. Managed-service and redistribution
+rights remain separate unless expressly granted.
+
+"Service Provider" is intended for MSP, MSSP, hosted, or other third-party
+service delivery. Capacity and deployment scope are defined by the signed
+entitlement. Redistribution, OEM, white-labeling, resale, or bundling remain
+separate rights unless expressly enabled.
+
+
+4. LICENSE CAPACITY AND TECHNICAL ENFORCEMENT
+The Community Edition includes capacity for up to 100 Monitored Sources.
+A signed paid license may permit a higher or unlimited capacity and additional
+deployment rights.
+
+If licensed capacity is exceeded, Log Source Watch may prevent enrollment,
+activation, or maintenance placement of additional sources while continuing to
+monitor sources that were already registered. Technical enforcement does not
+replace the licensee's obligation to comply with these terms.
+
+5. LICENSE FILES
+A paid entitlement may be represented by a cryptographically signed Log Source
+Watch license file. Altering, forging, bypassing, or knowingly circumventing a
+license file or technical license control does not grant additional rights.
+
+6. REDISTRIBUTION
+Except where expressly permitted by a separate written agreement, neither the
+Community License nor a standard paid deployment license permits redistribution,
+sublicensing, resale, publication of modified versions, or bundling Log Source
+Watch into another distributed product or service.
+
+7. MODIFICATION
+The licensee may modify the software for its own permitted internal use.
+Distribution of modified versions requires prior written permission or a
+separate written license from the copyright holder.
+
+8. OWNERSHIP
+The software and associated materials remain the property of the copyright
+holder. No ownership, trademark, or other intellectual-property rights are
+transferred except for the limited license expressly granted above.
+
+9. THIRD-PARTY PRODUCTS
+Splunk, Splunk Enterprise, Splunk Cloud Platform, and related marks are
+trademarks of their respective owners. Log Source Watch is independently
+developed and is not affiliated with or endorsed by Splunk Inc. Third-party
+software and services remain subject to their own license terms.
+
+10. NO WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTIES OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, NON-INFRINGEMENT, AVAILABILITY, SECURITY, OR ERROR-FREE
+OPERATION.
+
+11. LIMITATION OF LIABILITY
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE COPYRIGHT HOLDER SHALL
+NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY,
+OR BUSINESS-INTERRUPTION DAMAGES, LOSS OF DATA, LOSS OF PROFITS, LOSS OF
+REVENUE, OR COSTS ARISING FROM USE OR INABILITY TO USE THE SOFTWARE.
+
+12. OPERATOR RESPONSIBILITY
+THE LICENSEE IS RESPONSIBLE FOR REVIEWING SEARCHES, PERMISSIONS, SCHEDULES,
+RESOURCE CONSUMPTION, DATA RETENTION, SECURITY CONTROLS, LICENSE CAPACITY, AND
+ENVIRONMENT-SPECIFIC CONFIGURATION BEFORE PRODUCTION DEPLOYMENT.
+
+13. COMMERCIAL LICENSING
+Commercial licensing terms, support terms, pricing, and any additional rights
+are provided separately by the copyright holder through the product listing or
+other official contact channel.
+
+14. PRECEDENCE
+A separately executed commercial agreement or other written agreement signed
+by the copyright holder supersedes these terms only to the extent of a conflict.
+
+15. ACCEPTANCE
+By installing, copying, or using Log Source Watch, the licensee acknowledges
+that it has read and accepted the applicable terms of this license.

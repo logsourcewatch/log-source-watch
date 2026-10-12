@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to package, e.g. v4.9.3-rc2"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build GitHub release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Resolve tag/version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Validate
+        run: python scripts/validate.py
+
+      - name: Build
+        run: python scripts/build_release.py --version "${{ steps.ver.outputs.version }}"
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          VERSION="${{ steps.ver.outputs.version }}"
+          FILE="dist/logsource_watch-${VERSION}.tgz"
+          SHA="${FILE}.sha256"
+
+          EXTRA=()
+          if [[ "$TAG" == *"-rc"* || "$TAG" == *"-beta"* ]]; then
+            EXTRA+=(--prerelease)
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$FILE" "$SHA" --clobber
+          else
+            gh release create "$TAG" "$FILE" "$SHA" \
+              --title "Log Source Watch ${VERSION}" \
+              --generate-notes \
+              "${EXTRA[@]}"
+          fi

@@ -1,0 +1,7 @@
+Log Source Watch
+Copyright (c) 2026 Jonni Nieminen.
+
+Independent software for Splunk Enterprise.
+Not affiliated with or endorsed by Splunk Inc.
+
+See LICENSE.txt for licensing terms.

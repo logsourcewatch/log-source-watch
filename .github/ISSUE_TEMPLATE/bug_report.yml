@@ -1,0 +1,41 @@
+name: Bug report
+description: Report a reproducible Log Source Watch defect
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not use public issues for security vulnerabilities or customer-sensitive data.
+  - type: input
+    id: version
+    attributes:
+      label: Log Source Watch version
+      placeholder: "4.9.3"
+    validations:
+      required: true
+  - type: input
+    id: splunk
+    attributes:
+      label: Splunk Enterprise version
+      placeholder: "e.g. 9.4.x"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true

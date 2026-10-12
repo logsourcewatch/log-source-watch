@@ -1,0 +1,73 @@
+<form version="1.1" theme="dark" hideEdit="true" stylesheet="lsw_reports.css">
+  <label>Audit Trail</label>
+  <description>Administrative enrollment, threshold, maintenance and lifecycle changes stored in the lsw_audit KV Store.</description>
+  <init><set token="audit_scope">*</set><set token="audit_action">*</set><set token="audit_text"></set></init>
+
+  <search id="audit_base">
+    <query><![CDATA[
+| inputlookup lsw_audit
+| addinfo
+| where (info_min_time=0 OR event_time_epoch>=info_min_time) AND (info_max_time=0 OR event_time_epoch<=info_max_time)
+| eval scope_ui=case(scope="add","enrollment",true(),coalesce(scope,"-")),
+       action_ui=coalesce(operation,"-"),
+       haystack=lower(coalesce(actor,"")." ".scope_ui." ".coalesce(operation,"")." ".coalesce(index,"")." ".coalesce(host,"")." ".coalesce(change_ref,"")." ".coalesce(details,""))
+| where ($audit_scope|s$="*" OR scope_ui=$audit_scope|s$)
+| where ($audit_action|s$="*" OR action_ui=$audit_action|s$)
+| where len(trim($audit_text|s$))=0 OR like(haystack,"%".lower(trim($audit_text|s$))."%")
+    ]]></query>
+    <earliest>$audit_time.earliest$</earliest><latest>$audit_time.latest$</latest>
+  </search>
+
+  <row><panel><html>
+    <div class="lsw-report-hero">
+      <div><div class="lsw-report-eyebrow">REPORTS</div><h1>Audit Trail</h1><p>Who changed what, where and when. One audit document is written for each affected source.</p></div>
+      <div class="lsw-report-meta"><b>Storage</b><span>lsw_audit KV Store</span></div>
+    </div>
+  </html></panel></row>
+
+  <fieldset submitButton="false">
+    <input type="time" token="audit_time" searchWhenChanged="true"><label>Time range</label><default><earliest>-30d@d</earliest><latest>now</latest></default></input>
+    <input type="dropdown" token="audit_scope" searchWhenChanged="true"><label>Scope</label><choice value="*">All scopes</choice><choice value="manage">Single-source management</choice><choice value="bulk">Bulk management</choice><choice value="enrollment">Enrollment</choice><choice value="scheduler">Scheduler</choice><default>*</default></input>
+    <input type="dropdown" token="audit_action" searchWhenChanged="true"><label>Action</label><choice value="*">All actions</choice><choice value="source_enrolled">Source enrolled</choice><choice value="threshold_change">Threshold changed</choice><choice value="maintenance_set">Maintenance changed</choice><choice value="lifecycle_change">Lifecycle changed</choice><choice value="maintenance_expired">Maintenance expired</choice><default>*</default></input>
+    <input type="text" token="audit_text" searchWhenChanged="true"><label>Search audit records</label><default></default></input>
+  </fieldset>
+
+  <row id="lsw_report_kpis">
+    <panel><single><title>Audit records</title><search base="audit_base"><query>| stats count AS value</query></search><option name="drilldown">none</option></single></panel>
+    <panel><single><title>Users</title><search base="audit_base"><query>| stats dc(actor) AS value</query></search><option name="drilldown">none</option></single></panel>
+    <panel><single><title>Affected sources</title><search base="audit_base"><query>| eval source=index."|".host | stats dc(source) AS value</query></search><option name="drilldown">none</option></single></panel>
+  </row>
+
+  <row><panel><table id="audit_table">
+    <title>Configuration changes</title>
+    <search base="audit_base"><query><![CDATA[
+| eval Time=strftime(event_time_epoch,"%Y-%m-%d %H:%M:%S"),
+       User=coalesce(actor,"-"),
+       Scope=case(scope_ui="manage","Management",scope_ui="bulk","Bulk Actions",scope_ui="enrollment","Enrollment",scope_ui="scheduler","Scheduler",true(),scope_ui),
+       Action=case(operation="source_enrolled","SOURCE ENROLLED",operation="threshold_change","THRESHOLD",operation="maintenance_set","MAINTENANCE",operation="lifecycle_change","LIFECYCLE",operation="maintenance_expired","MAINTENANCE EXPIRED",true(),upper(operation)),
+       Old_status=coalesce(old_status,"-"),
+       New_status=coalesce(new_status,"-"),
+       Old_threshold=if(isnull(old_threshold_seconds),"-",round(old_threshold_seconds/60,0)." min"),
+       New_threshold=if(isnull(new_threshold_seconds),"-",round(new_threshold_seconds/60,0)." min"),
+       Old_maintenance=case(isnull(old_maintenance_until),"-",old_maintenance_until=0,"-",true(),strftime(old_maintenance_until,"%Y-%m-%d %H:%M:%S")),
+       New_maintenance=case(isnull(new_maintenance_until),"-",new_maintenance_until=0,"-",true(),strftime(new_maintenance_until,"%Y-%m-%d %H:%M:%S")),
+       Origin=case(
+         change_ref="ui-threshold","Management · threshold",
+         change_ref="ui-maintenance","Management · maintenance",
+         change_ref="ui-maintenance-clear","Management · maintenance cleared",
+         change_ref="ui-activate","Management · activate",
+         change_ref="ui-retire","Management · retire",
+         change_ref="ui-discovery-enroll","Discover · enrollment",
+         change_ref="setup-initial-enrollment","Initial Setup · enrollment",
+         change_ref="setup-refresh","Initial Setup · refresh",
+         change_ref="maintenance-expired","Scheduler · maintenance expiry",
+         like(change_ref,"ui-bulk-%"),"Bulk Actions · ".replace(change_ref,"^ui-bulk-",""),
+         true(),coalesce(change_ref,"-")
+       )
+| sort 0 - event_time_epoch
+| table Time User Scope Action index host Old_status New_status Old_threshold New_threshold Old_maintenance New_maintenance Origin details
+    ]]></query></search>
+    <format type="color" field="Action"><colorPalette type="map">{"SOURCE ENROLLED":"#38c982","THRESHOLD":"#5ab8e8","MAINTENANCE":"#8a6de9","LIFECYCLE":"#d8a11c","MAINTENANCE EXPIRED":"#8a6de9"}</colorPalette></format>
+    <option name="count">50</option><option name="drilldown">none</option><option name="wrap">true</option>
+  </table></panel></row>
+</form>

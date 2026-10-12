@@ -1,0 +1,92 @@
+[]
+access = read : [ * ], write : [ admin, sc_admin ]
+export = none
+
+[views/overview]
+access = read : [ * ], write : [ admin, sc_admin ]
+export = none
+
+[views/health]
+access = read : [ * ], write : [ admin, sc_admin ]
+export = none
+
+[macros/lsw_calculate_state]
+access = read : [ * ], write : [ admin, sc_admin ]
+export = none
+
+[savedsearches/LSW_SilentHost]
+access = read : [ * ], write : [ admin, sc_admin ]
+export = none
+
+[savedsearches/LSW_Health]
+access = read : [ * ], write : [ admin, sc_admin ]
+export = none
+
+[views/about]
+access = read : [ * ], write : [ admin, sc_admin ]
+export = none
+
+[views/manage_hosts]
+access = read : [ admin, sc_admin ], write : [ admin, sc_admin ]
+export = none
+
+[views/bulk_management]
+access = read : [ admin, sc_admin ], write : [ admin, sc_admin ]
+export = none
+
+[views/add_log_sources]
+access = read : [ admin, sc_admin ], write : [ admin, sc_admin ]
+export = none
+
+[views/audit_trail]
+access = read : [ admin, sc_admin ], write : [ admin, sc_admin ]
+export = none
+
+[views/initial_setup]
+access = read : [ admin, sc_admin ], write : [ admin, sc_admin ]
+export = none
+
+[savedsearches/LSW_AuditTrail]
+access = read : [ admin, sc_admin ], write : [ admin, sc_admin ]
+export = none
+
+[savedsearches/LSW_Update_LastSeen]
+access = read : [ admin, sc_admin ], write : [ admin, sc_admin ]
+export = none
+
+[savedsearches/LSW_Expire_Maintenance]
+access = read : [ admin, sc_admin ], write : [ admin, sc_admin ]
+export = none
+
+[savedsearches/LSW_Build_State]
+access = read : [ admin, sc_admin ], write : [ admin, sc_admin ]
+export = none
+
+[savedsearches/LSW_Export_SilentHost_File]
+access = read : [ admin, sc_admin ], write : [ admin, sc_admin ]
+export = none
+
+[savedsearches/LSW_Export_Health_File]
+access = read : [ admin, sc_admin ], write : [ admin, sc_admin ]
+export = none
+
+[transforms/lsw_audit]
+access = read : [ admin, sc_admin ], write : [ admin, sc_admin ]
+export = none
+
+[collections/lsw_audit]
+access = read : [ admin, sc_admin ], write : [ admin, sc_admin ]
+export = none
+
+
+[views/silent_hosts]
+access = read : [ * ], write : [ admin, sc_admin ]
+export = none
+
+[commands/lswlicense]
+access = read : [ * ], write : [ admin, sc_admin ]
+export = system
+
+[commands/lswlicenseguard]
+access = read : [ admin, sc_admin ], write : [ admin, sc_admin ]
+export = system

@@ -1,0 +1,16 @@
+<dashboard version="1.1" theme="dark" hideEdit="true" stylesheet="lsw_manage.css" script="lsw_bulk_2026101209.js">
+  <label>Bulk Actions</label>
+  <description>Apply lifecycle, threshold and maintenance policy to a filtered source scope.</description>
+  <row>
+    <panel>
+      <html>
+        <div id="lsw-bulk-root" class="lsw-manage-root" aria-live="polite">
+          <div class="lsw-boot-card">
+            <div class="lsw-spinner"></div>
+            <div><strong>Loading Bulk Actions</strong><span>Preparing source scope and policy controls…</span></div>
+          </div>
+        </div>
+      </html>
+    </panel>
+  </row>
+</dashboard>

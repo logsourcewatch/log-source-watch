@@ -1,0 +1,56 @@
+<form version="1.1" theme="dark" hideEdit="true" stylesheet="lsw_reports.css">
+  <label>Silent Sources</label>
+  <description>Currently monitored sources whose silence threshold has been exceeded.</description>
+  <init><set token="silent_index">*</set><set token="silent_text"></set></init>
+
+  <search id="silent_base">
+    <query><![CDATA[
+| inputlookup lsw_state
+| where effective_state="SILENT"
+| eval haystack=lower(index." ".host)
+| where ($silent_index|s$="*" OR index=$silent_index|s$)
+| where len(trim($silent_text|s$))=0 OR like(haystack,"%".lower(trim($silent_text|s$))."%")
+    ]]></query>
+    <refresh>60s</refresh><refreshType>delay</refreshType>
+  </search>
+
+  <row><panel><html>
+    <div class="lsw-report-hero">
+      <div><div class="lsw-report-eyebrow">REPORTS</div><h1>Silent Sources</h1><p>Sources that have exceeded their configured silence threshold and require investigation.</p></div>
+      <a class="lsw-report-action" href="manage_hosts">Open Management</a>
+    </div>
+  </html></panel></row>
+
+  <fieldset submitButton="false">
+    <input type="dropdown" token="silent_index" searchWhenChanged="true">
+      <label>Index</label><choice value="*">All indexes</choice>
+      <search><query>| inputlookup lsw_state | where effective_state="SILENT" | stats count BY index | sort 0 index</query></search>
+      <fieldForLabel>index</fieldForLabel><fieldForValue>index</fieldForValue><default>*</default>
+    </input>
+    <input type="text" token="silent_text" searchWhenChanged="true">
+      <label>Search host or index</label><default></default>
+    </input>
+  </fieldset>
+
+  <row id="lsw_report_kpis">
+    <panel><single><title>Silent sources</title><search base="silent_base"><query>| stats count AS value</query></search><option name="drilldown">none</option></single></panel>
+    <panel><single><title>Affected indexes</title><search base="silent_base"><query>| stats dc(index) AS value</query></search><option name="drilldown">none</option></single></panel>
+    <panel><single><title>Oldest silence</title><search base="silent_base"><query>| stats max(age_seconds) AS age | eval value=case(isnull(age),"-",age&lt;3600,round(age/60,1)." min",age&lt;86400,round(age/3600,1)." h",true(),round(age/86400,1)." d") | fields value</query></search><option name="drilldown">none</option></single></panel>
+  </row>
+
+  <row><panel>
+    <table id="lsw_silent_table">
+      <title>Current silent sources</title>
+      <search base="silent_base"><query><![CDATA[
+| eval Threshold=round(threshold_seconds/60,0)." min",
+       Silent_for=case(age_seconds<3600,round(age_seconds/60,1)." min",age_seconds<86400,round(age_seconds/3600,1)." h",true(),round(age_seconds/86400,1)." d"),
+       Over_threshold=case((age_seconds-threshold_seconds)<3600,round((age_seconds-threshold_seconds)/60,1)." min",(age_seconds-threshold_seconds)<86400,round((age_seconds-threshold_seconds)/3600,1)." h",true(),round((age_seconds-threshold_seconds)/86400,1)." d"),
+       Last_seen=strftime(last_seen,"%Y-%m-%d %H:%M:%S")
+| sort 0 - age_seconds index host
+| rename index AS Index host AS Host
+| table Index Host Threshold Silent_for Over_threshold Last_seen
+      ]]></query></search>
+      <option name="count">50</option><option name="drilldown">none</option><option name="wrap">false</option>
+    </table>
+  </panel></row>
+</form>

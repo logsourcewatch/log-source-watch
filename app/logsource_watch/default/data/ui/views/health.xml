@@ -1,0 +1,64 @@
+<dashboard version="1.1" theme="dark" hideEdit="true" stylesheet="lsw_reports.css">
+  <label>Application Health</label>
+  <description>Scheduler execution, KV Store readiness and monitoring statistics for Log Source Watch.</description>
+
+  <search id="health_base"><query>| savedsearch LSW_Health</query><refresh>60s</refresh><refreshType>delay</refreshType></search>
+
+  <row><panel><html>
+    <div class="lsw-report-hero">
+      <div><div class="lsw-report-eyebrow">REPORTS</div><h1>Application Health</h1><p>Operational health of scheduled jobs and the KV Store-backed application data plane.</p></div>
+      <a class="lsw-report-action" href="about">Technical Reference</a>
+    </div>
+  </html></panel></row>
+
+  <row id="lsw_report_kpis">
+    <panel><single><title>Healthy components</title><search base="health_base"><query>| stats count(eval(health="OK")) AS value</query></search><option name="drilldown">none</option></single></panel>
+    <panel><single><title>Needs attention</title><search base="health_base"><query>| stats count(eval(health!="OK" AND health!="WAITING FOR SETUP" AND health!="NOT INITIALIZED")) AS value</query></search><option name="drilldown">none</option></single></panel>
+    <panel><single><title>Setup state</title><search base="health_base"><query>| eval setup=if(health="WAITING FOR SETUP" OR health="NOT INITIALIZED",1,0) | stats max(setup) AS s | eval value=if(s=1,"SETUP REQUIRED","READY") | fields value</query></search><option name="drilldown">none</option></single></panel>
+  </row>
+
+  <row><panel>
+    <table>
+      <title>Scheduled jobs</title>
+      <search base="health_base"><query><![CDATA[
+| where component_type="scheduler"
+| eval Last_run=if(last_run_epoch>0,strftime(last_run_epoch,"%Y-%m-%d %H:%M:%S"),"NO RUN"),
+       Age=if(age_seconds>99999999,"-",round(age_seconds/60,1)." min"),
+       Runtime=if(isnull(runtime_seconds),"-",round(runtime_seconds,2)." s")
+| rename component AS Component health AS Health scheduler_status AS Scheduler
+| table Component Health Last_run Age Scheduler Runtime
+      ]]></query></search>
+      <format type="color" field="Health"><colorPalette type="map">{"OK":"#38c982","WARN":"#d8a11c","STALE":"#e2a12a","ERROR":"#e25050","WAITING FOR SETUP":"#5ab8e8"}</colorPalette></format>
+      <option name="count">20</option><option name="drilldown">none</option>
+    </table>
+  </panel></row>
+
+  <row>
+    <panel><table>
+      <title>KV Store collections</title>
+      <search base="health_base"><query><![CDATA[
+| where component_type="kvstore"
+| eval Last_timestamp=if(last_run_epoch>0,strftime(last_run_epoch,"%Y-%m-%d %H:%M:%S"),"-")
+| rename component AS Collection health AS Health records AS Records
+| table Collection Health Records Last_timestamp
+      ]]></query></search>
+      <format type="color" field="Health"><colorPalette type="map">{"OK":"#38c982","WARN":"#d8a11c","STALE":"#e2a12a","ERROR":"#e25050","EMPTY":"#8799a7","NOT INITIALIZED":"#5ab8e8"}</colorPalette></format>
+      <option name="count">20</option><option name="drilldown">none</option>
+    </table></panel>
+
+    <panel><table>
+      <title>Monitoring statistics</title>
+      <search><query><![CDATA[
+| inputlookup lsw_state
+| stats count AS Registered
+        sum(eval(effective_state!="RETIRED")) AS Monitored
+        sum(eval(effective_state="OK")) AS OK
+        sum(eval(effective_state="SILENT")) AS Silent
+        sum(eval(effective_state="NO LOG OBSERVATION")) AS No_log_observation
+        sum(eval(effective_state="MAINTENANCE")) AS Maintenance
+        sum(eval(effective_state="RETIRED")) AS Retired
+      ]]></query><refresh>60s</refresh><refreshType>delay</refreshType></search>
+      <option name="drilldown">none</option>
+    </table></panel>
+  </row>
+</dashboard>
