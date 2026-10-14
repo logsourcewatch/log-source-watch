@@ -183,6 +183,7 @@ require([
     function managementBase() {
         return '| inputlookup lsw_inventory' +
             ' | lookup local=true lsw_lastseen _key OUTPUT last_seen updated_at AS lastseen_updated_at' +
+            ' | lookup local=true lsw_heartbeat host OUTPUT heartbeat_last_seen heartbeat_updated_at heartbeat_source heartbeat_type' +
             ' | `lsw_calculate_state` ' + stateEval();
     }
 
@@ -224,7 +225,7 @@ require([
             ' maintenance_display=case(status!="maintenance","—",maintenance_until=0,"Until cleared",true(),strftime(maintenance_until,"%Y-%m-%d %H:%M"))' +
             ' | sort 0 ' + sortSpec() +
             ' | streamstats count AS __row | where __row>' + offset + ' AND __row<=' + maxrow +
-            ' | table _key index host display_state lifecycle status threshold_seconds threshold_minutes last_seen last_seen_display age_seconds age_minutes age_display maintenance_until maintenance_display state_updated_at __total';
+            ' | table _key index host display_state lifecycle status threshold_seconds threshold_minutes last_seen last_seen_display age_seconds age_minutes age_display maintenance_until maintenance_display heartbeat_last_seen heartbeat_age_seconds heartbeat_status heartbeat_type diagnosis diagnosis_label state_updated_at __total';
     }
 
     function statsQuery() {
@@ -320,7 +321,7 @@ require([
             '<div class="lsw-table-meta"><div><strong id="lsw-result-count">0 sources</strong><span id="lsw-refresh-time">Loading…</span></div><div><label>Rows <select id="lsw-page-size" class="lsw-select lsw-select-small"></select></label></div></div>' +
             '<div class="lsw-table-scroll"><table class="lsw-table"><thead><tr>' +
               '<th class="lsw-check-col"><input id="lsw-check-all" type="checkbox" aria-label="Select visible sources"/></th>' +
-              '<th data-sort="display_state">State</th><th data-sort="host">Host</th><th data-sort="index">Index</th><th>Lifecycle</th><th data-sort="threshold_minutes">Threshold</th><th data-sort="last_seen">Last seen</th><th data-sort="age_minutes">Age</th><th></th>' +
+              '<th data-sort="display_state">State</th><th data-sort="host">Host</th><th data-sort="index">Index</th><th>Lifecycle</th><th data-sort="threshold_minutes">Threshold</th><th data-sort="last_seen">Last seen</th><th data-sort="age_minutes">Age</th><th>_internal</th><th></th>' +
             '</tr></thead><tbody id="lsw-table-body"></tbody></table></div>' +
             '<div class="lsw-pagination"><span id="lsw-page-status"></span><div><button class="lsw-btn lsw-btn-ghost" data-action="prev-page">← Previous</button><button class="lsw-btn lsw-btn-ghost" data-action="next-page">Next →</button></div></div>' +
           '</section>' +
@@ -361,7 +362,7 @@ require([
     function renderLoadingRows() {
         var rows = [];
         for (var i=0; i<8; i++) {
-            rows.push('<tr class="lsw-skeleton-row"><td colspan="9"><div class="lsw-skeleton"></div></td></tr>');
+            rows.push('<tr class="lsw-skeleton-row"><td colspan="10"><div class="lsw-skeleton"></div></td></tr>');
         }
         $("#lsw-table-body").html(rows.join(""));
     }
@@ -369,7 +370,7 @@ require([
     function renderRows() {
         var $body = $("#lsw-table-body");
         if (!state.rows.length) {
-            $body.html('<tr><td colspan="9"><div class="lsw-empty"><div class="lsw-empty-icon">⌕</div><strong>No sources match these filters</strong><span>Adjust the search or reset filters.</span></div></td></tr>');
+            $body.html('<tr><td colspan="10"><div class="lsw-empty"><div class="lsw-empty-icon">⌕</div><strong>No sources match these filters</strong><span>Adjust the search or reset filters.</span></div></td></tr>');
         } else {
             $body.html(state.rows.map(function(r) {
                 var checked = state.selectedKeys[r._key] ? " checked" : "";
@@ -382,6 +383,7 @@ require([
                     '<td>'+escHtml(r.threshold_minutes)+' min</td>' +
                     '<td class="lsw-dim">'+escHtml(r.last_seen_display)+'</td>' +
                     '<td>'+escHtml(r.age_display)+'</td>' +
+                    '<td><span class="lsw-internal '+String(r.heartbeat_status||"UNKNOWN").toLowerCase()+'">'+escHtml(r.heartbeat_status==="ALIVE"?"ALIVE":r.heartbeat_status==="STALE"?"STALE":"—")+'</span></td>' +
                     '<td class="lsw-row-arrow">›</td>' +
                 '</tr>';
             }).join(""));
@@ -432,6 +434,7 @@ require([
             '<section class="lsw-detail-grid">'+
               '<div><span>Lifecycle</span><strong>'+escHtml(r.lifecycle)+'</strong></div><div><span>Last seen</span><strong>'+escHtml(r.last_seen_display)+'</strong></div>'+
               '<div><span>Event age</span><strong>'+escHtml(r.age_display)+'</strong></div><div><span>Maintenance</span><strong>'+escHtml(maintenanceText)+'</strong></div>'+
+              '<div><span>_internal heartbeat</span><strong>'+escHtml(r.heartbeat_status==="ALIVE"?"ALIVE · "+rc4Date(r.heartbeat_last_seen):r.heartbeat_status==="STALE"?"STALE · "+rc4Date(r.heartbeat_last_seen):"No evidence")+'</strong></div><div><span>Diagnosis</span><strong>'+escHtml(r.diagnosis_label||"—")+'</strong></div>'+
             '</section>'+
             '<section class="lsw-editor-section"><div class="lsw-section-heading"><div><h3>Silence threshold</h3><p>Source becomes SILENT when this limit is exceeded.</p></div></div>'+ 
               '<div class="lsw-inline-control"><input id="lsw-threshold-input" type="number" min="1" max="10080" step="1" inputmode="numeric" value="'+escHtml(r.threshold_minutes)+'"/><span>minutes</span><button class="lsw-btn lsw-btn-primary" data-action="save-threshold">Save threshold</button></div>'+ 
@@ -510,7 +513,7 @@ require([
             state.loading = false;
             state.rows = [];
             state.total = 0;
-            $("#lsw-table-body").html('<tr><td colspan="9"><div class="lsw-empty error"><strong>Could not load source inventory</strong><span>'+escHtml(err.message)+'</span><button class="lsw-btn lsw-btn-primary" data-action="refresh">Try again</button></div></td></tr>');
+            $("#lsw-table-body").html('<tr><td colspan="10"><div class="lsw-empty error"><strong>Could not load source inventory</strong><span>'+escHtml(err.message)+'</span><button class="lsw-btn lsw-btn-primary" data-action="refresh">Try again</button></div></td></tr>');
             $("#lsw-result-count").text("Load failed");
             toast(err.message, "error");
         });
@@ -592,11 +595,12 @@ require([
             ' | outputlookup append=true key_field=_key allow_updates=true override_if_empty=false lsw_audit | where 1=0 ]' +
             ' | lsw_audit action=source_update source=manage_hosts detail="' + spl(detail) + '"' +
             ' | lookup local=true lsw_lastseen _key OUTPUT last_seen updated_at AS lastseen_updated_at' +
+            ' | lookup local=true lsw_heartbeat host OUTPUT heartbeat_last_seen heartbeat_updated_at heartbeat_source heartbeat_type' +
             ' | `lsw_calculate_state` | eval state_updated_at=now()' +
-            ' | fields _key index host status threshold_seconds threshold_minutes maintenance_until change_ref last_seen lastseen_updated_at age_seconds age_minutes effective_state alarm state_updated_at' +
+            ' | fields _key index host status threshold_seconds threshold_minutes maintenance_until change_ref last_seen lastseen_updated_at age_seconds age_minutes effective_state alarm heartbeat_last_seen heartbeat_updated_at heartbeat_source heartbeat_type heartbeat_age_seconds heartbeat_status diagnosis diagnosis_label state_updated_at' +
             ' | outputlookup append=true key_field=_key allow_updates=true override_if_empty=false lsw_state' + stateEval() +
             ' | eval lifecycle=upper(status),threshold_minutes=round(coalesce(threshold_seconds,7200)/60,0),last_seen_display=if(isnull(last_seen),"—",strftime(last_seen,"%Y-%m-%d %H:%M:%S")),age_display=case(isnull(age_minutes),"—",age_minutes<60,round(age_minutes,1)." min",age_minutes<1440,round(age_minutes/60,1)." h",true(),round(age_minutes/1440,1)." d"),maintenance_display=case(status!="maintenance","—",maintenance_until=0,"Until cleared",true(),strftime(maintenance_until,"%Y-%m-%d %H:%M"))' +
-            ' | table _key index host display_state lifecycle status threshold_seconds threshold_minutes last_seen last_seen_display age_seconds age_minutes age_display maintenance_until maintenance_display state_updated_at';
+            ' | table _key index host display_state lifecycle status threshold_seconds threshold_minutes last_seen last_seen_display age_seconds age_minutes age_display maintenance_until maintenance_display heartbeat_last_seen heartbeat_age_seconds heartbeat_status heartbeat_type diagnosis diagnosis_label state_updated_at';
     }
 
     function bulkMutationSearch(keys, action, value) {
@@ -653,6 +657,7 @@ require([
     state.allRows = [];
     state.inventoryByKey = {};
     state.lastSeenByKey = {};
+    state.heartbeatByHost = {};
 
     function rc4Error(value) {
         if (!value) return "Unknown error";
@@ -715,10 +720,11 @@ require([
         var z=function(n){return String(n).padStart(2,"0");};
         return d.getFullYear()+"-"+z(d.getMonth()+1)+"-"+z(d.getDate())+" "+z(d.getHours())+":"+z(d.getMinutes())+":"+z(d.getSeconds());
     }
-    function rc4State(inv, ls) {
+    function rc4State(inv, ls, hb) {
         var now=rc4Epoch(), threshold=Number(inv.threshold_seconds||7200), last=ls && ls.last_seen!==undefined ? Number(ls.last_seen) : null;
         var maint=Number(inv.maintenance_until||0), status=String(inv.status||"active").toLowerCase();
-        var effective, display, age=null;
+        var effective, display, age=null,hbLast=hb&&hb.heartbeat_last_seen!==undefined?Number(hb.heartbeat_last_seen):null,hbAge=null,hbStatus="UNKNOWN",diagnosis="",diagnosisLabel="";
+        if(hbLast!==null&&isFinite(hbLast)){hbAge=Math.max(0,now-hbLast);hbStatus=hbAge<=900?"ALIVE":"STALE";}
         if (last!==null && isFinite(last)) age=Math.max(0,now-last);
         if (status==="retired") effective="RETIRED";
         else if (status==="maintenance" && (maint===0 || maint>now)) effective="MAINTENANCE";
@@ -726,6 +732,15 @@ require([
         else if (age>threshold) effective="SILENT";
         else effective="OK";
         display = effective;
+        if(effective==="RETIRED"){diagnosis="RETIRED";diagnosisLabel="Retired";}
+        else if(effective==="MAINTENANCE"){diagnosis="MAINTENANCE";diagnosisLabel="Maintenance";}
+        else if(effective==="OK"){diagnosis="SOURCE_REPORTING";diagnosisLabel="Source reporting";}
+        else if(effective==="SILENT"&&hbStatus==="ALIVE"){diagnosis="SOURCE_SILENT_INTERNAL_ACTIVE";diagnosisLabel="Source silent · _internal active";}
+        else if(effective==="SILENT"&&hbStatus==="STALE"){diagnosis="SOURCE_SILENT_INTERNAL_STALE";diagnosisLabel="Source + _internal stale";}
+        else if(effective==="SILENT"){diagnosis="SOURCE_SILENT_INTERNAL_UNKNOWN";diagnosisLabel="Source silent · no _internal evidence";}
+        else if(effective==="NO LOG OBSERVATION"&&hbStatus==="ALIVE"){diagnosis="NO_LOG_INTERNAL_ACTIVE";diagnosisLabel="No source observation · _internal active";}
+        else if(effective==="NO LOG OBSERVATION"&&hbStatus==="STALE"){diagnosis="NO_LOG_INTERNAL_STALE";diagnosisLabel="No source observation · _internal stale";}
+        else {diagnosis="NO_LOG_INTERNAL_UNKNOWN";diagnosisLabel="No source observation · no _internal evidence";}
         var ageMin=age===null?null:Math.round(age/6)/10;
         return {
             _key:inv._key,index:inv.index,host:inv.host,status:status,lifecycle:status.toUpperCase(),
@@ -733,6 +748,9 @@ require([
             change_ref:inv.change_ref||"",created_at:inv.created_at,updated_at:inv.updated_at,
             last_seen:last,lastseen_updated_at:ls?ls.updated_at:null,age_seconds:age,age_minutes:ageMin,
             effective_state:effective,display_state:display,alarm:effective==="SILENT"?1:0,state_updated_at:now,
+            heartbeat_last_seen:hbLast,heartbeat_updated_at:hb&&hb.heartbeat_updated_at!==undefined?Number(hb.heartbeat_updated_at):null,
+            heartbeat_source:hb&&hb.heartbeat_source||"",heartbeat_age_seconds:hbAge,heartbeat_status:hbStatus,heartbeat_type:hb&&hb.heartbeat_type||"",
+            diagnosis:diagnosis,diagnosis_label:diagnosisLabel,
             last_seen_display:rc4Date(last),
             age_display:ageMin===null?"—":ageMin<60?ageMin.toFixed(1)+" min":ageMin<1440?(ageMin/60).toFixed(1)+" h":(ageMin/1440).toFixed(1)+" d",
             maintenance_display:status!=="maintenance"?"—":maint===0?"Until cleared":rc4Date(maint).slice(0,16)
@@ -743,7 +761,7 @@ require([
         return {_key:row._key,index:row.index,host:row.host,status:row.status,threshold_seconds:Number(row.threshold_seconds||7200),
             threshold_minutes:Number(row.threshold_minutes||Math.round(Number(row.threshold_seconds||7200)/60)),maintenance_until:Number(row.maintenance_until||0),
             change_ref:row.change_ref||"",last_seen:row.last_seen,lastseen_updated_at:row.lastseen_updated_at,age_seconds:row.age_seconds,age_minutes:row.age_minutes,
-            effective_state:row.effective_state,alarm:Number(row.alarm||0),state_updated_at:rc4Epoch()};
+            effective_state:row.effective_state,alarm:Number(row.alarm||0),heartbeat_last_seen:row.heartbeat_last_seen,heartbeat_updated_at:row.heartbeat_updated_at,heartbeat_source:row.heartbeat_source||"",heartbeat_type:row.heartbeat_type||"",heartbeat_age_seconds:row.heartbeat_age_seconds,heartbeat_status:row.heartbeat_status||"UNKNOWN",diagnosis:row.diagnosis||"",diagnosis_label:row.diagnosis_label||"",state_updated_at:rc4Epoch()};
     }
 
     function rc4InventoryDoc(inv) {
@@ -754,13 +772,44 @@ require([
     function rc4LoadAll() {
         return Promise.all([
             kvGet("lsw_inventory", null, {limit:10000}),
-            kvGet("lsw_lastseen", null, {limit:10000})
+            kvGet("lsw_lastseen", null, {limit:10000}),
+            kvGet("lsw_heartbeat", null, {limit:10000}).catch(function(){return [];}),
+            kvGet("lsw_state", null, {limit:10000}).catch(function(){return [];})
         ]).then(function(parts) {
             var inv = $.isArray(parts[0]) ? parts[0] : [];
             var seen = $.isArray(parts[1]) ? parts[1] : [];
-            state.inventoryByKey={}; state.lastSeenByKey={};
+            var heartbeat = $.isArray(parts[2]) ? parts[2] : [];
+            var materialized = $.isArray(parts[3]) ? parts[3] : [];
+            var hbByHost={}, stateByKey={};
+            state.inventoryByKey={}; state.lastSeenByKey={}; state.heartbeatByHost={};
             seen.forEach(function(x){state.lastSeenByKey[x._key]=x;});
-            state.allRows=inv.map(function(x){state.inventoryByKey[x._key]=x;return rc4State(x,state.lastSeenByKey[x._key]);});
+            heartbeat.forEach(function(x){hbByHost[x.host]=x;state.heartbeatByHost[x.host]=x;});
+            materialized.forEach(function(x){stateByKey[x._key]=x;});
+            state.allRows=inv.map(function(x){
+                state.inventoryByKey[x._key]=x;
+                var row=rc4State(x,state.lastSeenByKey[x._key],hbByHost[x.host]);
+                var persisted=stateByKey[x._key];
+                /* If direct heartbeat KV evidence is temporarily unavailable in the
+                 * Web data plane, keep the latest materialized diagnosis visible.
+                 * This prevents a valid _internal ALIVE/STALE state from becoming
+                 * an unexplained dash in Management.
+                 */
+                if((!hbByHost[x.host] || row.heartbeat_status==="UNKNOWN") && persisted && persisted.heartbeat_status){
+                    row.heartbeat_last_seen=persisted.heartbeat_last_seen;
+                    row.heartbeat_updated_at=persisted.heartbeat_updated_at;
+                    row.heartbeat_source=persisted.heartbeat_source||"";
+                    row.heartbeat_type=persisted.heartbeat_type||"";
+                    row.heartbeat_age_seconds=persisted.heartbeat_last_seen!==undefined && persisted.heartbeat_last_seen!==null ?
+                        Math.max(0,rc4Epoch()-Number(persisted.heartbeat_last_seen)) : persisted.heartbeat_age_seconds;
+                    row.heartbeat_status=String(persisted.heartbeat_status||"UNKNOWN").toUpperCase();
+                    if(row.effective_state==="SILENT" && row.heartbeat_status==="ALIVE"){
+                        row.diagnosis="SOURCE_SILENT_INTERNAL_ACTIVE";row.diagnosis_label="Source silent · _internal active";
+                    }else if(row.effective_state==="SILENT" && row.heartbeat_status==="STALE"){
+                        row.diagnosis="SOURCE_SILENT_INTERNAL_STALE";row.diagnosis_label="Source + _internal stale";
+                    }
+                }
+                return row;
+            });
             return state.allRows;
         });
     }
@@ -797,7 +846,7 @@ require([
         if(state.allRows.length){rc4RenderFromCache();return Promise.resolve();}
         return rc4LoadAll().then(function(){rc4RenderFromCache();}).catch(function(err){
             state.loading=false;state.rows=[];state.total=0;
-            $("#lsw-table-body").html('<tr><td colspan="9"><div class="lsw-empty error"><strong>Could not load source inventory</strong><span>'+escHtml(err.message)+'</span><button class="lsw-btn lsw-btn-primary" data-action="refresh">Try again</button></div></td></tr>');
+            $("#lsw-table-body").html('<tr><td colspan="10"><div class="lsw-empty error"><strong>Could not load source inventory</strong><span>'+escHtml(err.message)+'</span><button class="lsw-btn lsw-btn-primary" data-action="refresh">Try again</button></div></td></tr>');
             $("#lsw-result-count").text("Load failed");toast(err.message,"error");
         });
     };
@@ -831,7 +880,16 @@ require([
         return Promise.all([kvGet("lsw_inventory",key,{}),kvGet("lsw_lastseen",key,{}).catch(function(){return null;})]).then(function(parts){
             var inv=parts[0], ls=parts[1], spec=rc4MutationSpec(inv,action,value);
             var increment=(String(inv.status||"active").toLowerCase()==="retired"&&(action==="activate"||action==="maintenance"))?1:0;
-            return assertLicenseCapacity(increment).then(function(){return kvPost("lsw_inventory",key,spec.doc).then(function(){var row=rc4State(spec.doc,ls);return Promise.all([kvPost("lsw_state",key,rc4StateDoc(row)),kvPost("lsw_audit",null,rc4AuditDoc(inv,spec))]).then(function(){return row;});});});
+            return assertLicenseCapacity(increment).then(function(){
+                return kvPost("lsw_inventory",key,spec.doc).then(function(){
+                    var hb=state.heartbeatByHost[spec.doc.host]||null;
+                    var row=rc4State(spec.doc,ls,hb);
+                    return Promise.all([
+                        kvPost("lsw_state",key,rc4StateDoc(row)),
+                        kvPost("lsw_audit",null,rc4AuditDoc(inv,spec))
+                    ]).then(function(){return row;});
+                });
+            });
         }).then(function(row){
             state.inventoryByKey[row._key]=rc4InventoryDoc(row);state.allRows=state.allRows.map(function(r){return r._key===row._key?row:r;});applyUpdatedRow(row);rc4RenderFromCache();toast(successMessage||(row.host+" updated"));return rc4AuditFor(row).then(function(a){state.audit=a;renderDrawer();}).catch(function(){return null;});
         }).catch(function(err){toast(err.message,"error");}).then(function(){setPending(false);});
@@ -842,7 +900,7 @@ require([
         var label=action==="retire"?"Retire "+keys.length+" selected sources?":"Apply action to "+keys.length+" selected sources?";
         modal(label,'<p>This updates only the selected rows. Inventory remains authoritative and canonical state is updated immediately.</p>',action==="retire"?"Retire sources":"Apply",action==="retire").then(function(ok){if(!ok)return;setPending(true);
             var invDocs=[],stateDocs=[],auditDocs=[],updated=[],increment=0;
-            try{keys.forEach(function(k){var inv=state.inventoryByKey[k];if(!inv)return;if(String(inv.status||"active").toLowerCase()==="retired"&&(action==="activate"||action==="maintenance"))increment++;var spec=rc4MutationSpec(inv,action,value);var row=rc4State(spec.doc,state.lastSeenByKey[k]);invDocs.push(spec.doc);stateDocs.push(rc4StateDoc(row));auditDocs.push(rc4AuditDoc(inv,spec));updated.push(row);});}catch(e){toast(e.message,"error");setPending(false);return;}
+            try{keys.forEach(function(k){var inv=state.inventoryByKey[k];if(!inv)return;if(String(inv.status||"active").toLowerCase()==="retired"&&(action==="activate"||action==="maintenance"))increment++;var spec=rc4MutationSpec(inv,action,value);var row=rc4State(spec.doc,state.lastSeenByKey[k],state.heartbeatByHost[spec.doc.host]||null);invDocs.push(spec.doc);stateDocs.push(rc4StateDoc(row));auditDocs.push(rc4AuditDoc(inv,spec));updated.push(row);});}catch(e){toast(e.message,"error");setPending(false);return;}
             assertLicenseCapacity(increment).then(function(){return kvBatchSave("lsw_inventory",invDocs);}).then(function(){return kvBatchSave("lsw_audit",auditDocs);}).then(function(){return kvBatchSave("lsw_state",stateDocs);}).then(function(){updated.forEach(function(row){state.inventoryByKey[row._key]=rc4InventoryDoc(row);state.allRows=state.allRows.map(function(r){return r._key===row._key?row:r;});});state.selectedKeys={};rc4RenderFromCache();toast(updated.length+" sources updated");}).catch(function(e){toast(e.message,"error");state.allRows=[];return loadPage(false);}).then(function(){setPending(false);});
         });
     };
@@ -903,6 +961,7 @@ require([
         window.clearInterval(autoRefreshTimer);
         autoRefreshTimer=window.setInterval(function(){
             if(document.hidden || state.pending || state.selected) return;
+            state.allRows=[];
             Promise.all([loadPage(false),loadStats()]);
         },60000);
     }

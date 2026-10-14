@@ -32,3 +32,8 @@ Use **Reports -> Application Health** and confirm:
 
 Only create `local/` overrides when the target environment actually requires
 them. Do not modify installed `default/` files.
+
+
+## Heartbeat diagnostics
+
+Verify that `LSW_Update_Heartbeat` is running if `_internal` correlation is desired. The feature is optional: agentless sources can remain healthy even when no matching heartbeat record exists.

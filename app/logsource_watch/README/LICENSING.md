@@ -64,9 +64,9 @@ head. The public verification key is intentionally embedded in the app.
 | Edition | Standard annual list price | Standard capacity | Standard deployment model |
 | --- | ---: | ---: | --- |
 | **Community** | **€0 / year** | Up to 100 Monitored Sources | Single standalone environment; own operations |
-| **Professional** | **€2,999 / year + VAT** | 101–1,000 | One production environment by default |
-| **Enterprise** | **€6,999 / year + VAT** | 1,001–5,000 | SHC and multiple production environments can be entitled |
-| **Enterprise Plus** | **From €9,999 / year + VAT** | Above 5,000 / custom / unlimited | Custom capacity and deployment scope |
+| **Professional** | **€1,990 / year + VAT** | 101–2,500 | One production environment by default |
+| **Enterprise** | **€6,999 / year + VAT** | 2,501–10,000 | SHC and multiple production environments can be entitled |
+| **Enterprise Plus** | **Custom quote** | Above 10,000 / custom / unlimited | Custom capacity and deployment scope |
 | **Service Provider** | **Custom quote** | Custom | MSP/MSSP/hosted-service scope when explicitly granted |
 
 These are standard annual public list prices for direct licensing. Final
@@ -87,3 +87,47 @@ installed, the application defaults to a 100 Monitored Source capacity.
 Current license validity, capacity usage, expiry and deployment entitlements are shown under **Reports -> Application Health**. Overview raises a notification when a paid license has 30 days or less remaining and when licensed source capacity is at least 90% utilized.
 
 When a valid paid license expires, existing registered sources continue to be monitored. Actions that would increase the monitored-source population are blocked until a renewed license is installed.
+
+
+### Professional capacity extension
+
+A larger standalone deployment that exceeds the standard Professional capacity does not have to move to Enterprise solely because of one additional source. A separately signed Professional capacity extension can be quoted when SHC, multiple-production deployment rights, managed-service rights or other Enterprise-level entitlements are not required.
+
+## Splunk Web Licensing page
+
+Log Source Watch includes an administrator-only **Licensing** page in the app navigation.
+
+The page shows the effective runtime entitlement, including:
+
+- edition and validity state
+- customer and license ID
+- monitored-source usage and capacity
+- expiry and remaining days
+- Search Head Cluster entitlement
+- multiple-production-search-head entitlement
+- managed-service entitlement
+- redistribution entitlement
+
+On a standalone Splunk deployment, an administrator can upload the signed
+`lsw_license.json` file directly from the page. The server validates the
+signature, product, validity window and licensed capacity before atomically
+replacing the active file under:
+
+```text
+$SPLUNK_HOME/etc/apps/logsource_watch/local/lsw_license.json
+```
+
+Invalid uploads never replace the currently active license. One previous file is
+retained as `lsw_license.json.previous` after a successful replacement.
+
+### Search Head Cluster
+
+GUI upload is intentionally disabled when Search Head Cluster is detected. A
+member-local file would create inconsistent licensing state across the cluster.
+Deploy the same `local/lsw_license.json` through the SHC deployer instead.
+
+### Restart requirement
+
+The Licensing page uses the app REST endpoint registered in `restmap.conf`.
+A Splunk restart is required after first installing a release that introduces or
+changes this endpoint.

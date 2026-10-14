@@ -1,6 +1,6 @@
 <dashboard version="1.1" theme="dark" hideEdit="true" stylesheet="lsw_reports.css">
   <label>Application Health</label>
-  <description>Scheduler execution, KV Store readiness and monitoring statistics for Log Source Watch.</description>
+  <description>Scheduler execution, KV Store readiness, source-state statistics and _internal heartbeat diagnostics for Log Source Watch.</description>
 
   <init>
     <set token="lic_class">community</set><set token="lic_status">LOADING</set><set token="lic_edition">—</set><set token="lic_usage">—</set><set token="lic_customer">—</set><set token="lic_id">—</set><set token="lic_expires">—</set><set token="lic_days">—</set><set token="lic_shc">—</set><set token="lic_multi">—</set><set token="lic_msp">—</set><set token="lic_redist">—</set><set token="lic_message">Reading license status…</set>
@@ -26,20 +26,20 @@
 
   <row><panel><html>
     <div class="lsw-report-hero">
-      <div><div class="lsw-report-eyebrow">REPORTS</div><h1>Application Health</h1><p>Operational health of scheduled jobs and the KV Store-backed application data plane.</p></div>
+      <div><div class="lsw-report-eyebrow">REPORTS</div><h1>Application Health</h1><p>Operational health of scheduled jobs, KV Store state and heartbeat-aware source diagnostics.</p></div>
       <a class="lsw-report-action" href="about">Technical Reference</a>
     </div>
   </html></panel></row>
 
   <row id="lsw_report_kpis">
-    <panel><single><title>Healthy components</title><search base="health_base"><query>| stats count(eval(health="OK")) AS value</query></search><option name="drilldown">none</option></single></panel>
-    <panel><single><title>Needs attention</title><search base="health_base"><query>| stats count(eval(health!="OK" AND health!="WAITING FOR SETUP" AND health!="NOT INITIALIZED")) AS value</query></search><option name="drilldown">none</option></single></panel>
+    <panel><single><title>Healthy components</title><search base="health_base"><query>| stats count(eval(health="OK")) AS value</query></search><option name="drilldown">none</option><option name="useColors">1</option><option name="colorBy">value</option><option name="colorMode">none</option><option name="rangeValues">[0]</option><option name="rangeColors">["0x38c982","0x38c982"]</option><option name="showSparkline">0</option><option name="showTrendIndicator">0</option></single></panel>
+    <panel><single><title>Needs attention</title><search base="health_base"><query>| stats count(eval(health!="OK" AND health!="WAITING FOR SETUP" AND health!="NOT INITIALIZED")) AS value</query></search><option name="drilldown">none</option><option name="useColors">1</option><option name="colorBy">value</option><option name="colorMode">none</option><option name="rangeValues">[1]</option><option name="rangeColors">["0x38c982","0xd8a11c"]</option><option name="showSparkline">0</option><option name="showTrendIndicator">0</option></single></panel>
     <panel><single><title>Setup state</title><search base="health_base"><query>| eval setup=if(health="WAITING FOR SETUP" OR health="NOT INITIALIZED",1,0) | stats max(setup) AS s | eval value=if(s=1,"SETUP REQUIRED","READY") | fields value</query></search><option name="drilldown">none</option></single></panel>
     <panel><single><title>License</title><search base="license_base"><query>| eval value=license_status | fields value</query></search><option name="drilldown">none</option></single></panel>
   </row>
 
   <row><panel><html>
-    <div class="lsw-license-health $lic_class$"><div class="lsw-license-health-head"><div><span>LICENSE STATUS</span><strong>$lic_status$ · $lic_edition$</strong><small>$lic_message$</small></div><a href="about">Licensing model →</a></div><div class="lsw-license-health-grid"><div><span>Monitored source usage</span><b>$lic_usage$</b></div><div><span>Customer</span><b>$lic_customer$</b></div><div><span>License ID</span><b>$lic_id$</b></div><div><span>Expires</span><b>$lic_expires$</b><small>$lic_days$</small></div><div><span>Search Head Cluster</span><b>$lic_shc$</b></div><div><span>Multiple production SH</span><b>$lic_multi$</b></div><div><span>Managed service</span><b>$lic_msp$</b></div><div><span>Redistribution</span><b>$lic_redist$</b></div></div></div>
+    <div class="lsw-license-health $lic_class$"><div class="lsw-license-health-head"><div><span>LICENSE STATUS</span><strong>$lic_status$ · $lic_edition$</strong><small>$lic_message$</small></div><a href="licensing">Manage licensing →</a></div><div class="lsw-license-health-grid"><div><span>Monitored source usage</span><b>$lic_usage$</b></div><div><span>Customer</span><b>$lic_customer$</b></div><div><span>License ID</span><b>$lic_id$</b></div><div><span>Expires</span><b>$lic_expires$</b><small>$lic_days$</small></div><div><span>Search Head Cluster</span><b>$lic_shc$</b></div><div><span>Multiple production SH</span><b>$lic_multi$</b></div><div><span>Managed service</span><b>$lic_msp$</b></div><div><span>Redistribution</span><b>$lic_redist$</b></div></div></div>
   </html></panel></row>
 
   <row><panel>
@@ -74,7 +74,10 @@
     <panel><table id="lsw_monitoring_stats">
       <title>Monitoring statistics</title>
       <search><query><![CDATA[
-| inputlookup lsw_state
+| inputlookup lsw_inventory
+| lookup local=true lsw_lastseen _key OUTPUT last_seen updated_at AS lastseen_updated_at
+| lookup local=true lsw_heartbeat host OUTPUT heartbeat_last_seen heartbeat_updated_at heartbeat_source heartbeat_type
+| `lsw_calculate_state`
 | stats count AS Registered
         sum(eval(effective_state!="RETIRED")) AS Monitored
         sum(eval(effective_state="OK")) AS OK
@@ -86,4 +89,26 @@
       <option name="drilldown">none</option>
     </table></panel>
   </row>
+
+  <row><panel><table id="lsw_heartbeat_stats">
+    <title>_internal heartbeat diagnostics</title>
+    <search><query><![CDATA[
+| inputlookup lsw_inventory
+| lookup local=true lsw_lastseen _key OUTPUT last_seen updated_at AS lastseen_updated_at
+| lookup local=true lsw_heartbeat host OUTPUT heartbeat_last_seen heartbeat_updated_at heartbeat_source heartbeat_type
+| `lsw_calculate_state`
+| where effective_state!="RETIRED"
+| stats count(eval(heartbeat_status="ALIVE")) AS "_internal alive"
+        count(eval(heartbeat_status="STALE")) AS "_internal stale"
+        count(eval(heartbeat_status="UNKNOWN" OR isnull(heartbeat_status))) AS "No evidence"
+        count(eval(diagnosis="SOURCE_SILENT_INTERNAL_ACTIVE")) AS "Silent + internal alive"
+        count(eval(diagnosis="SOURCE_SILENT_INTERNAL_STALE")) AS "Silent + internal stale"
+    ]]></query><refresh>60s</refresh><refreshType>delay</refreshType></search>
+    <option name="drilldown">none</option>
+  </table></panel></row>
+
+  <row><panel><html>
+    <div class="lsw-heartbeat-note"><b>Heartbeat source:</b> LSW correlates exact host values with recent <code>index=_internal sourcetype=splunkd source=*splunkd.log</code> events. Synthetic/demo host names and agentless sources normally show <b>No evidence</b>. Do not generate fake events into <code>_internal</code>; use a real Splunk instance/forwarder host to validate heartbeat correlation.</div>
+  </html></panel></row>
+
 </dashboard>

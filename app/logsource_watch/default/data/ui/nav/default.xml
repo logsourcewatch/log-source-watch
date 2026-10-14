@@ -6,5 +6,6 @@
     <view name="health"/>
     <view name="audit_trail"/>
   </collection>
+  <view name="licensing"/>
   <view name="about"/>
 </nav>

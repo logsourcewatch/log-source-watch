@@ -9,21 +9,21 @@
         <h1>Architecture, data flow and operational behavior</h1>
         <p>This page documents the runtime behavior of Log Source Watch 4.9.3: source identity, KV Store collections, management actions, discovery and enrollment, scheduled searches, reports, first-run setup and licensing.</p>
       </div>
-      <div class="lsw-about-version"><b>4.9.3</b>Build 2026101212</div>
+      <div class="lsw-about-version"><b>4.9.3</b>Build 2026101419</div>
     </div>
   </html></panel></row>
 
   <row><panel><html>
     <div class="lsw-about-card">
       <h2>1. Product architecture</h2>
-      <p>Log Source Watch monitors expected log continuity at <code>index + host</code> granularity. It does not monitor host uptime. A source is considered healthy when a registered source continues to produce events within its configured silence threshold.</p>
+      <p>Log Source Watch monitors expected log continuity at <code>index + host</code> granularity. The canonical source state is based on the monitored stream itself; optional <code>_internal</code> correlation adds diagnostic evidence about recent Splunk activity for the same host without redefining host uptime.</p>
       <div class="lsw-about-flow">
-        <span>Discovery / Initial Setup</span><i>→</i><span>lsw_inventory</span><i>+</i><span>lsw_lastseen</span><i>→</i><span>Live state calculation</span><i>→</i><span>Overview / Management</span><i>+</i><span>lsw_state materialization</span><i>→</i><span>Reports / exports</span>
+        <span>Discovery / Initial Setup</span><i>→</i><span>lsw_inventory</span><i>+</i><span>lsw_lastseen</span><i>+</i><span>lsw_heartbeat</span><i>→</i><span>Live state + diagnosis</span><i>→</i><span>Overview / Management</span><i>+</i><span>lsw_state materialization</span><i>→</i><span>Reports / exports</span>
       </div>
-      <div class="lsw-about-note"><b>Authoritative configuration:</b> <code>lsw_inventory</code>. <b>Latest observation:</b> <code>lsw_lastseen</code>. <b>Materialized operational state:</b> <code>lsw_state</code>. <b>Administrative history:</b> <code>lsw_audit</code>.</div>
+      <div class="lsw-about-note"><b>Authoritative configuration:</b> <code>lsw_inventory</code>. <b>Latest observation:</b> <code>lsw_lastseen</code>. <b>Optional Splunk heartbeat evidence:</b> <code>lsw_heartbeat</code>. <b>Materialized operational state:</b> <code>lsw_state</code>. <b>Administrative history:</b> <code>lsw_audit</code>.</div>
 
       <h3>Source identity</h3>
-      <p>The Overview and Management workspaces calculate the effective state directly from inventory + last_seen for immediate UI consistency. <code>LSW_Build_State</code> periodically reconciles the same English canonical state into <code>lsw_state</code> for reports and exports.</p>
+      <p>The Overview and Management workspaces calculate the effective state directly from inventory + last_seen for immediate UI consistency and add heartbeat diagnosis when matching <code>lsw_heartbeat</code> evidence exists. <code>LSW_Build_State</code> periodically materializes the same canonical state and diagnostics into <code>lsw_state</code> for reports and exports.</p>
       <p>The immutable source key is generated as <code>sha256(index."|".host)</code>. The same host name in different customer or application indexes therefore remains a distinct monitored source.</p>
 
       <h3>State precedence</h3>
@@ -36,6 +36,7 @@
       </ol>
       <pre class="lsw-about-code"><code>definition = eval threshold_seconds=coalesce(threshold_seconds,7200), threshold_minutes=round(threshold_seconds/60,0), maintenance_until=coalesce(maintenance_until,0), age_seconds=if(isnull(last_seen),null(),now()-last_seen), age_minutes=if(isnull(age_seconds),null(),round(age_seconds/60,1)) | eval effective_state=case(status==&quot;retired&quot;,&quot;RETIRED&quot;,status==&quot;maintenance&quot; AND (maintenance_until=0 OR maintenance_until&gt;now()),&quot;MAINTENANCE&quot;,isnull(last_seen),&quot;NO LOG OBSERVATION&quot;,age_seconds&gt;threshold_seconds,&quot;SILENT&quot;,true(),&quot;OK&quot;) | eval alarm=if(effective_state==&quot;SILENT&quot;,1,0)
 iseval = 0</code></pre>
+      <div class="lsw-about-note"><b>Freshness clock:</b> source age is based on the event timestamp <code>_time</code>, not Splunk index time <code>_indextime</code>. <code>LSW_Update_LastSeen</code> stores <code>latest(_time)</code> for each registered <code>index + host</code>, and state calculation uses <code>now() - last_seen</code>. Delayed/backfilled events with old event timestamps therefore do not make a source appear freshly reporting merely because they were indexed recently.</div>
     </div>
   </html></panel></row>
 
@@ -46,7 +47,8 @@ iseval = 0</code></pre>
         <tr><th>Collection</th><th>Purpose</th><th>Fields</th><th>Written by</th></tr>
         <tr><td><code>lsw_inventory</code></td><td>Registered source identity and policy.</td><td><code>_key, index, host, status, threshold_seconds, maintenance_until, change_ref, created_at, updated_at</code></td><td>Initial Setup, Discover enrollment, Management, Bulk Actions, maintenance expiry.</td></tr>
         <tr><td><code>lsw_lastseen</code></td><td>Latest observed event timestamp for each registered source.</td><td><code>_key, index, host, last_seen, updated_at</code></td><td>Initial Setup, Discover enrollment, <code>LSW_Update_LastSeen</code>.</td></tr>
-        <tr><td><code>lsw_state</code></td><td>Canonical materialized state used by dashboards and reports.</td><td><code>_key, index, host, status, threshold_seconds, threshold_minutes, maintenance_until, change_ref, last_seen, lastseen_updated_at, age_seconds, age_minutes, effective_state, alarm, state_updated_at</code></td><td>Management and Bulk immediate writes, Discover enrollment, Initial Setup, <code>LSW_Build_State</code>.</td></tr>
+        <tr><td><code>lsw_heartbeat</code></td><td>Latest matching Splunk <code>_internal / splunkd</code> evidence per host.</td><td><code>_key, host, heartbeat_last_seen, heartbeat_updated_at, heartbeat_source, heartbeat_type</code></td><td><code>LSW_Update_Heartbeat</code>.</td></tr>
+        <tr><td><code>lsw_state</code></td><td>Canonical materialized state used by dashboards and reports.</td><td><code>_key, index, host, status, threshold_seconds, threshold_minutes, maintenance_until, change_ref, last_seen, lastseen_updated_at, age_seconds, age_minutes, effective_state, alarm, heartbeat_last_seen, heartbeat_age_seconds, heartbeat_status, diagnosis, diagnosis_label, state_updated_at</code></td><td>Management and Bulk immediate writes, Discover enrollment, Initial Setup, <code>LSW_Build_State</code>.</td></tr>
         <tr><td><code>lsw_audit</code></td><td>One immutable administrative event per affected source.</td><td><code>event_time_epoch, actor, scope, operation, index, host, old_status, new_status, old_threshold_seconds, new_threshold_seconds, old_maintenance_until, new_maintenance_until, change_ref, details</code></td><td>Management, Bulk Actions and Discover enrollment.</td></tr>
         <tr><td><code>lsw_health</code></td><td>Packaged health collection reserved for persisted health integration/state.</td><td><code>component, last_run, scheduler_status, sid, version, updated_at</code></td><td>Health/export integration when used.</td></tr>
       </table>
@@ -120,7 +122,23 @@ iseval = 0</code></pre>
 
   <row><panel><html>
     <div class="lsw-about-card">
-      <h2>3. Management workspace</h2>
+      <h2>3. Freshness and Silence Risk Profile</h2>
+      <p>The Overview risk profile is an <b>early-warning visualization</b> derived from the same event-time age and per-source threshold used by canonical state. It does not introduce new lifecycle or alarm states.</p>
+      <table class="lsw-about-table">
+        <tr><th>Risk band</th><th>Threshold consumption</th><th>Canonical state</th><th>Meaning</th></tr>
+        <tr><td><b>Healthy margin</b></td><td><code>age / threshold &lt; 0.50</code></td><td><code>OK</code></td><td>Less than half of the configured silence budget has been consumed.</td></tr>
+        <tr><td><b>Watch</b></td><td><code>0.50 ≤ age / threshold &lt; 0.80</code></td><td><code>OK</code></td><td>The source is still healthy but has consumed 50–80% of its silence threshold.</td></tr>
+        <tr><td><b>Near threshold</b></td><td><code>0.80 ≤ age / threshold ≤ 1.00</code></td><td><code>OK</code></td><td>The source remains healthy but is close to becoming SILENT. At exactly 100% the source is still OK because SILENT begins only when age is greater than the threshold.</td></tr>
+        <tr><td><b>Silent</b></td><td><code>age / threshold &gt; 1.00</code></td><td><code>SILENT</code></td><td>The configured silence threshold has been exceeded.</td></tr>
+        <tr><td><b>No observation</b></td><td>No <code>last_seen</code></td><td><code>NO LOG OBSERVATION</code></td><td>The registered source has not yet produced a stored observation.</td></tr>
+      </table>
+      <div class="lsw-about-note"><b>Scope:</b> MAINTENANCE and RETIRED sources are excluded from the risk bands. Watch and Near threshold are visualization categories only; they do not create alerts, change <code>effective_state</code>, or alter the Silent Sources export.</div>
+    </div>
+  </html></panel></row>
+
+  <row><panel><html>
+    <div class="lsw-about-card">
+      <h2>4. Management workspace</h2>
       <p>The top-level <b>Management</b> view is one workspace with four internal tabs: <b>Sources</b>, <b>Bulk Actions</b>, <b>Discover</b> and <b>Initial Setup</b>. Sources and Bulk Actions read and write application KV Store directly through Splunk's authenticated application service. The page does not require a browser reload after a successful policy change.</p>
 
       <table class="lsw-about-table">
@@ -138,7 +156,7 @@ iseval = 0</code></pre>
 
   <row><panel><html>
     <div class="lsw-about-card">
-      <h2>4. Discovery and enrollment</h2>
+      <h2>5. Discovery and enrollment</h2>
       <p>Discovery is operator-driven. No broad event search is dispatched merely by opening the page. The operator chooses an index and lookback window and starts the scan.</p>
       <h3>Discovery read search</h3>
       <pre class="lsw-about-code"><code>| tstats latest(_time) AS observed_last_seen count AS events
@@ -163,7 +181,7 @@ iseval = 0</code></pre>
 
   <row><panel><html>
     <div class="lsw-about-card">
-      <h2>5. Initial Setup</h2>
+      <h2>6. Initial Setup</h2>
       <div class="lsw-about-note warning"><b>Splunk query confirmation warnings:</b> Splunk can require confirmation before packaged administrative searches or custom commands run. Accept the warning only when you intentionally initiated the corresponding Log Source Watch action. This is expected for protected write workflows and does not mean the packaged search is failing.</div>
       <p>On a clean installation <code>app.conf</code> has <code>is_configured=0</code> and <code>setup_view=initial_setup</code>. Splunk therefore directs the administrator to Initial Setup before normal use.</p>
       <ol>
@@ -180,77 +198,58 @@ iseval = 0</code></pre>
 
   <row><panel><html>
     <div class="lsw-about-card">
-      <h2>6. Scheduled jobs and exact packaged SPL</h2>
-      <p>Recurring jobs are enabled in the package. They are staggered across the five-minute cycle to reduce concurrency. Before Initial Setup, the last-seen update remains fail-closed because the inventory contains no active indexes.</p>
-      <details class="lsw-about-details"><summary>LSW_Update_LastSeen</summary><pre class="lsw-about-code"><code>description = Internal: update last_seen for registered log sources
-enableSched = 1
-cron_schedule = */5 * * * *
-dispatch.earliest_time = -6h
-dispatch.latest_time = now
-max_concurrent = 1
-dispatch.max_time = 240
-dispatch.max_count = 25000
-is_visible = 0
+      <h2>7. Scheduled jobs</h2>
+      <p>Recurring jobs are enabled in the package and staggered across the five-minute cycle. Source state remains based on the monitored stream; heartbeat collection only enriches diagnosis.</p>
+      <table class="lsw-about-table">
+        <tr><th>Job</th><th>Schedule</th><th>Purpose</th></tr>
+        <tr><td><code>LSW_Update_LastSeen</code></td><td>Every 5 min</td><td>Refreshes the latest event observation for active and maintenance <code>index + host</code> sources.</td></tr>
+        <tr><td><code>LSW_Update_Heartbeat</code></td><td>Minute +1 / 5 min</td><td>Collects latest <code>index=_internal sourcetype=splunkd source=*splunkd.log</code> evidence for monitored host names over a 30-minute dispatch window.</td></tr>
+        <tr><td><code>LSW_Expire_Maintenance</code></td><td>Minute +2 / 5 min</td><td>Returns expired timed maintenance sources to active state and writes an audit event.</td></tr>
+        <tr><td><code>LSW_Build_State</code></td><td>Minute +3 / 5 min</td><td>Materializes canonical source state plus heartbeat diagnostics into <code>lsw_state</code>.</td></tr>
+        <tr><td><code>LSW_Export_SilentHost_File</code></td><td>Minute +4 / 5 min</td><td>Exports silent sources including heartbeat and diagnosis fields.</td></tr>
+        <tr><td><code>LSW_Export_Health_File</code></td><td>Minute +4 / 5 min</td><td>Exports scheduler and KV Store health.</td></tr>
+      </table>
+      <div class="lsw-about-note"><b>Fail-closed setup behavior:</b> source and heartbeat searches use the registered inventory to build their scope. Before enrollment, a sentinel value prevents an unconfigured search from scanning arbitrary hosts or indexes.</div>
+      <div class="lsw-about-note warning"><b>Heartbeat is optional diagnostic context:</b> an empty <code>lsw_heartbeat</code> collection is not an application-health failure. Agentless sources can legitimately have no matching <code>_internal</code> telemetry.</div>
+    </div>
+  </html></panel></row>
 
-search = | tstats latest(_time) AS seen WHERE [ | inputlookup lsw_inventory | where status=&quot;active&quot; OR status=&quot;maintenance&quot; | stats count BY index | fields index | append [ | makeresults | eval index=&quot;__LSW_NOT_CONFIGURED__&quot; | fields index ] | format maxresults=0 ] BY index host | where isnotnull(host) AND len(host)&gt;0 | eval _key=sha256(index.&quot;|&quot;.host) | lookup local=true lsw_inventory _key OUTPUT status AS inventory_status | where inventory_status=&quot;active&quot; OR inventory_status=&quot;maintenance&quot; | lookup local=true lsw_lastseen _key OUTPUT last_seen AS old_seen | eval last_seen=if(isnull(old_seen),seen,if(seen&gt;old_seen,seen,old_seen)), updated_at=now() | fields _key index host last_seen updated_at | outputlookup append=true key_field=_key allow_updates=true override_if_empty=false lsw_lastseen</code></pre></details><details class="lsw-about-details"><summary>LSW_Expire_Maintenance</summary><pre class="lsw-about-code"><code>description = Internal: automatically reactivate expired timed maintenance windows
-enableSched = 1
-cron_schedule = 1-59/5 * * * *
-max_concurrent = 1
-is_visible = 0
 
-search = | inputlookup lsw_inventory | where status=&quot;maintenance&quot; AND maintenance_until&gt;0 AND maintenance_until&lt;=now() | eval old_status=status, old_threshold_seconds=threshold_seconds, old_maintenance_until=maintenance_until, status=&quot;active&quot;, maintenance_until=0, updated_at=now(), change_ref=&quot;maintenance-expired&quot; | appendpipe [ | eval event_time_epoch=now(), actor=&quot;system&quot;, scope=&quot;scheduler&quot;, operation=&quot;maintenance_expired&quot;, new_status=status, new_threshold_seconds=threshold_seconds, new_maintenance_until=maintenance_until, details=&quot;Timed maintenance expired automatically&quot; | eval _key=sha256(tostring(event_time_epoch).&quot;|&quot;.actor.&quot;|&quot;.index.&quot;|&quot;.host.&quot;|&quot;.operation) | fields _key event_time_epoch actor scope operation index host old_status new_status old_threshold_seconds new_threshold_seconds old_maintenance_until new_maintenance_until change_ref details | outputlookup append=true key_field=_key allow_updates=true override_if_empty=false lsw_audit | where 1=0 ] | fields _key index host status threshold_seconds maintenance_until change_ref created_at updated_at | outputlookup append=true key_field=_key allow_updates=true override_if_empty=false lsw_inventory</code></pre></details><details class="lsw-about-details"><summary>LSW_Build_State</summary><pre class="lsw-about-code"><code>description = Internal: build canonical state table
-enableSched = 1
-cron_schedule = 2-59/5 * * * *
-max_concurrent = 1
-is_visible = 0
-
-search = | inputlookup lsw_inventory | lookup local=true lsw_lastseen _key OUTPUT last_seen updated_at AS lastseen_updated_at | `lsw_calculate_state` | eval state_updated_at=now() | fields _key index host status threshold_seconds threshold_minutes maintenance_until change_ref last_seen lastseen_updated_at age_seconds age_minutes effective_state alarm state_updated_at | outputlookup append=false key_field=_key allow_updates=true override_if_empty=true lsw_state</code></pre></details><details class="lsw-about-details"><summary>LSW_SilentHost</summary><pre class="lsw-about-code"><code>description = Raw backend list of currently silent log sources for external monitoring. Persistent file: $SPLUNK_HOME/etc/apps/logsource_watch/lookups/lsw_silent_hosts.csv
-enableSched = 0
-is_visible = 1
-
-search = | inputlookup lsw_state | where effective_state=&quot;SILENT&quot; | fields index host age_seconds threshold_seconds last_seen | sort 0 index host</code></pre></details><details class="lsw-about-details"><summary>LSW_Health</summary><pre class="lsw-about-code"><code>description = Raw backend health list for external monitoring. Persistent file: $SPLUNK_HOME/etc/apps/logsource_watch/lookups/lsw_health.csv
-enableSched = 0
-is_visible = 1
-
-search = | makeresults | eval component=split(&quot;LSW_Update_LastSeen,LSW_Expire_Maintenance,LSW_Build_State,LSW_Export_SilentHost_File,LSW_Export_Health_File&quot;,&quot;,&quot;) | mvexpand component | eval component_type=&quot;scheduler&quot; | fields component component_type | append [ search index=_internal sourcetype=scheduler earliest=-30m (savedsearch_name=&quot;LSW_Update_LastSeen&quot; OR savedsearch_name=&quot;LSW_Expire_Maintenance&quot; OR savedsearch_name=&quot;LSW_Build_State&quot; OR savedsearch_name=&quot;LSW_Export_SilentHost_File&quot; OR savedsearch_name=&quot;LSW_Export_Health_File&quot;) | stats latest(_time) AS last_run latest(status) AS scheduler_status latest(run_time) AS runtime_seconds BY savedsearch_name | rename savedsearch_name AS component | eval component_type=&quot;scheduler&quot; ] | append [ | inputlookup lsw_inventory | stats count AS setup_inventory | eval component=&quot;__setup__&quot;, component_type=&quot;setup&quot; ] | eventstats max(setup_inventory) AS setup_inventory | where component!=&quot;__setup__&quot; | stats max(last_run) AS last_run latest(scheduler_status) AS scheduler_status max(runtime_seconds) AS runtime_seconds max(setup_inventory) AS setup_inventory BY component component_type | eval age_seconds=if(isnull(last_run),999999999,now()-last_run), records=null(), health=if(setup_inventory=0,&quot;WAITING FOR SETUP&quot;,case(isnull(last_run),&quot;STALE&quot;,age_seconds&gt;900,&quot;STALE&quot;,scheduler_status=&quot;success&quot;,&quot;OK&quot;,scheduler_status=&quot;skipped&quot;,&quot;WARN&quot;,true(),&quot;ERROR&quot;)) | append [ | inputlookup lsw_inventory | stats count AS records max(updated_at) AS last_run | eval component=&quot;KV_lsw_inventory&quot;, component_type=&quot;kvstore&quot;, scheduler_status=&quot;DATA&quot;, runtime_seconds=null(), age_seconds=if(isnull(last_run),999999999,now()-last_run), health=if(records&gt;0,&quot;OK&quot;,&quot;NOT INITIALIZED&quot;) ] | append [ | inputlookup lsw_lastseen | stats count AS records max(updated_at) AS last_run | appendcols [ | inputlookup lsw_inventory | stats count AS inventory_records ] | eval component=&quot;KV_lsw_lastseen&quot;, component_type=&quot;kvstore&quot;, scheduler_status=&quot;DATA&quot;, runtime_seconds=null(), age_seconds=if(isnull(last_run),999999999,now()-last_run), health=case(inventory_records=0,&quot;NOT INITIALIZED&quot;,records=0,&quot;EMPTY&quot;,true(),&quot;OK&quot;) | fields - inventory_records ] | append [ | inputlookup lsw_state | stats count AS records max(state_updated_at) AS last_run | appendcols [ | inputlookup lsw_inventory | stats count AS inventory_records ] | eval component=&quot;KV_lsw_state&quot;, component_type=&quot;kvstore&quot;, scheduler_status=&quot;DATA&quot;, runtime_seconds=null(), age_seconds=if(isnull(last_run),999999999,now()-last_run), health=case(inventory_records=0,&quot;NOT INITIALIZED&quot;,records=0,&quot;EMPTY&quot;,age_seconds&gt;600,&quot;STALE&quot;,true(),&quot;OK&quot;) | fields - inventory_records ] | eval last_run_epoch=last_run | fields component component_type health last_run_epoch age_seconds scheduler_status runtime_seconds records | sort 0 component_type component</code></pre></details><details class="lsw-about-details"><summary>LSW_Export_SilentHost_File</summary><pre class="lsw-about-code"><code>description = Internal: refresh persistent CSV backend file for current silent sources
-enableSched = 1
-cron_schedule = 3-59/5 * * * *
-max_concurrent = 1
-is_visible = 0
-
-search = | inputlookup lsw_state | where effective_state=&quot;SILENT&quot; | fields index host age_seconds threshold_seconds last_seen | sort 0 index host | outputlookup lsw_silent_hosts.csv</code></pre></details><details class="lsw-about-details"><summary>LSW_Export_Health_File</summary><pre class="lsw-about-code"><code>description = Internal: refresh persistent CSV backend file for application health
-enableSched = 1
-cron_schedule = 4-59/5 * * * *
-max_concurrent = 1
-is_visible = 0
-
-search = | savedsearch LSW_Health | outputlookup lsw_health.csv</code></pre></details><details class="lsw-about-details"><summary>LSW_AuditTrail</summary><pre class="lsw-about-code"><code>description = Backend Audit Trail search for Log Source Watch. Primary data is stored in the lsw_audit KV Store. The Reports menu opens the dedicated dark Audit Trail dashboard.
-enableSched = 0
-dispatch.earliest_time = -30d@d
-dispatch.latest_time = now
-
-search = | inputlookup lsw_audit | addinfo | where (info_min_time=0 OR event_time_epoch&gt;=info_min_time) AND (info_max_time=0 OR event_time_epoch&lt;=info_max_time) | eval Time=strftime(event_time_epoch,&quot;%d.%m.%Y %H:%M:%S&quot;), User=actor, Scope=scope, Action=operation, Old_status=coalesce(old_status,&quot;-&quot;), New_status=coalesce(new_status,&quot;-&quot;), Old_threshold=if(isnull(old_threshold_seconds),&quot;-&quot;,round(old_threshold_seconds/60,1).&quot; min&quot;), New_threshold=if(isnull(new_threshold_seconds),&quot;-&quot;,round(new_threshold_seconds/60,1).&quot; min&quot;), Old_maintenance=case(isnull(old_maintenance_until),&quot;-&quot;,old_maintenance_until=0,&quot;-&quot;,true(),strftime(old_maintenance_until,&quot;%d.%m.%Y %H:%M:%S&quot;)), New_maintenance=case(isnull(new_maintenance_until),&quot;-&quot;,new_maintenance_until=0,&quot;-&quot;,true(),strftime(new_maintenance_until,&quot;%d.%m.%Y %H:%M:%S&quot;)) | sort 0 - event_time_epoch | table Time User Scope Action index host Old_status New_status Old_threshold New_threshold Old_maintenance New_maintenance change_ref details</code></pre></details>
+  <row><panel><html>
+    <div class="lsw-about-card">
+      <h2>8. Heartbeat-aware diagnosis</h2>
+      <p>Log Source Watch correlates monitored hosts with recent <code>index=_internal sourcetype=splunkd source=*splunkd.log</code> activity. This is diagnostic evidence only: it does <b>not</b> change the canonical lifecycle state or automatically assume every source is Universal Forwarder-based.</p>
+      <table class="lsw-about-table">
+        <tr><th>Source state</th><th>_internal evidence</th><th>Interpretation</th></tr>
+        <tr><td><code>SILENT</code></td><td><code>ALIVE</code></td><td>The monitored data stream is silent while Splunk internal telemetry for the same host is still current. Investigate input/log production/parsing/routing before host availability.</td></tr>
+        <tr><td><code>SILENT</code></td><td><code>STALE</code></td><td>Both the monitored stream and Splunk internal heartbeat are stale. Investigate forwarder/service/host/connectivity first.</td></tr>
+        <tr><td><code>SILENT</code></td><td><code>UNKNOWN</code></td><td>No recent matching _internal evidence is available. This is normal for agentless sources and must not be treated as proof that a host is down.</td></tr>
+      </table>
+      <div class="lsw-about-note"><b>Default heartbeat freshness:</b> 15 minutes via <code>lsw_heartbeat_stale_seconds</code>. The heartbeat scheduler searches only monitored host names and stores the latest evidence in <code>lsw_heartbeat</code>.</div>
     </div>
   </html></panel></row>
 
   <row><panel><html>
     <div class="lsw-about-card">
-      <h2>7. Reports and exported data</h2>
+      <h2>9. Reports and machine-readable output</h2>
       <table class="lsw-about-table">
         <tr><th>View / object</th><th>Source</th><th>Purpose</th></tr>
         <tr><td>Silent Sources</td><td><code>lsw_state</code></td><td>Human-readable dark report of currently silent sources.</td></tr>
-        <tr><td>Application Health</td><td><code>LSW_Health</code></td><td>Scheduler freshness, KV Store readiness and monitoring statistics.</td></tr>
+        <tr><td>Application Health</td><td><code>LSW_Health</code></td><td>Scheduler freshness, KV Store readiness, monitoring statistics and _internal heartbeat diagnostics.</td></tr>
         <tr><td>Audit Trail</td><td><code>lsw_audit</code></td><td>Filterable administrative history. Legacy <code>scope="add"</code> rows are normalized to enrollment in the report UI.</td></tr>
-        <tr><td><code>LSW_SilentHost</code></td><td><code>lsw_state</code></td><td>Backend compatibility search for current silent sources.</td></tr>
-        <tr><td><code>lsw_silent_hosts.csv</code></td><td><code>LSW_Export_SilentHost_File</code></td><td>Persisted machine-readable silent-source export.</td></tr>
+        <tr><td><code>LSW_SilentHost</code></td><td><code>lsw_state</code></td><td>Machine-readable saved search containing every source whose canonical <code>effective_state</code> is currently <code>SILENT</code>, including heartbeat and diagnosis fields.</td></tr>
+        <tr><td><code>lsw_silent_hosts.csv</code></td><td><code>LSW_Export_SilentHost_File</code></td><td>Persisted machine-readable silent-source snapshot recalculated from current inventory, last-seen and heartbeat data on its scheduled export cycle.</td></tr>
         <tr><td><code>lsw_health.csv</code></td><td><code>LSW_Export_Health_File</code></td><td>Persisted machine-readable health export.</td></tr>
       </table>
+      <div class="lsw-about-note"><b>Current-state consistency:</b> Overview, Management, Silent Sources, Application Health source statistics and the <code>LSW_SilentHost</code> backend search calculate current state from <code>lsw_inventory + lsw_lastseen + lsw_heartbeat</code> with the shared <code>lsw_calculate_state</code> macro. They do not wait for the periodic <code>lsw_state</code> materialization before a threshold crossing becomes visible. <code>lsw_state</code> remains the persisted canonical snapshot built by <code>LSW_Build_State</code>.</div>
+      <div class="lsw-about-note"><b>Operational integration:</b> an external monitoring or workflow system can query <code>LSW_SilentHost</code> or consume <code>lsw_silent_hosts.csv</code>. A non-empty current SILENT list is suitable for opening an investigation workflow. The exported <code>heartbeat_status</code>, <code>diagnosis</code> and <code>diagnosis_label</code> fields provide first-step triage context. Planned work should be placed in MAINTENANCE so it is not exported as SILENT.</div>
+      <div class="lsw-about-note warning"><b>Important:</b> <code>NO LOG OBSERVATION</code> is intentionally separate from SILENT and is not included in <code>LSW_SilentHost</code>. If an operational process must also react to newly enrolled sources that have never been observed, monitor that state separately.</div>
     </div>
   </html></panel></row>
 
   <row><panel><html>
     <div class="lsw-about-card">
-      <h2>8. Configuration, access and deployment</h2>
+      <h2>10. Configuration, access and deployment</h2>
       <div class="lsw-about-grid">
         <div class="lsw-about-mini"><h3>Packaged defaults</h3><p>Source-controlled application configuration belongs under <code>app/logsource_watch/default/</code>. Do not modify installed defaults for environment-specific production configuration.</p></div>
         <div class="lsw-about-mini"><h3>Environment overrides</h3><p>Deployment-specific configuration belongs under <code>$SPLUNK_HOME/etc/apps/logsource_watch/local/</code> or the corresponding Search Head Cluster deployer app <code>local/</code> directory.</p></div>
@@ -262,20 +261,26 @@ search = | inputlookup lsw_audit | addinfo | where (info_min_time=0 OR event_tim
 
   <row><panel><html>
     <div class="lsw-about-card">
-      <h2>9. Licensing</h2>
+      <h2>11. Licensing</h2>
       <div class="lsw-about-note license"><b>Community Edition:</b> Log Source Watch may be used free of charge for personal, internal and commercial use for the licensee's own operations with up to <b>100 Monitored Sources</b>. A Monitored Source is one unique <code>index + host</code> combination whose lifecycle status is <code>active</code> or <code>maintenance</code>. <code>retired</code> sources do not count toward licensed capacity.</div>
       <p>A paid Log Source Watch commercial license is required for more than 100 Monitored Sources, Splunk Search Head Cluster deployment, multiple production search heads, MSP/MSSP or other managed/hosted service use, and redistribution/resale/bundling. Paid editions may include <b>Professional</b>, <b>Enterprise</b>, <b>Enterprise Plus</b> and <b>Service Provider</b> entitlements.</p>
 
-      <div class="lsw-about-note"><b>Current environment status:</b> runtime license validity, monitored-source usage, expiry and deployment entitlements are shown under <b>Reports → Application Health</b>. About documents the licensing model; Application Health is the operational source of truth for this Splunk instance.</div>
+      <div class="lsw-about-note"><b>Standalone capacity extension:</b> organizations that exceed the standard Professional source capacity but do not need Search Head Cluster or multiple-production deployment rights may request a separately signed Professional capacity extension. Enterprise is intended to represent a meaningful scale or topology step, not an arbitrary one-source threshold.</div>
+
+      <div class="lsw-about-note"><b>Current environment status:</b> runtime license validity, monitored-source usage, customer, license ID, expiry and deployment entitlements are shown on the dedicated <b>Licensing</b> page. Application Health also exposes the active edition as operational context.</div>
+
+      <h3>License installation and renewal</h3>
+      <p>On a standalone deployment, an administrator can upload a signed <code>lsw_license.json</code> from the Licensing page. The server validates product identity, signature, validity period and capacity before replacing the active entitlement. Invalid uploads do not replace the current license. A successful replacement is written atomically and the previous file is retained as <code>lsw_license.json.previous</code>.</p>
+      <p>On Search Head Cluster deployments, license-file upload from an individual member is intentionally disabled; deploy the entitlement consistently through the supported cluster deployment process.</p>
 
       <h3>License editions</h3>
       <p>The edition names describe the standard commercial model. A signed license file is authoritative for paid capacity and deployment rights.</p>
       <table class="lsw-about-table lsw-license-tiers">
         <tr><th>Edition</th><th>Standard annual list price</th><th>Standard capacity</th><th>Deployment rights</th></tr>
         <tr><td><b>Community</b></td><td>€0 / year</td><td>Up to 100 Monitored Sources</td><td>Single standalone Splunk environment; own operations; no SHC, managed-service or redistribution rights.</td></tr>
-        <tr><td><b>Professional</b></td><td>€2,999 / year + VAT</td><td>101–1,000 Monitored Sources</td><td>One production environment by default. SHC, multiple production environments, managed-service use and redistribution are not included unless explicitly granted.</td></tr>
-        <tr><td><b>Enterprise</b></td><td>€6,999 / year + VAT</td><td>1,001–5,000 Monitored Sources</td><td>SHC and multiple production environments can be entitled. Managed-service and redistribution rights remain separate signed entitlements.</td></tr>
-        <tr><td><b>Enterprise Plus</b></td><td>From €9,999 / year + VAT</td><td>More than 5,000 or custom/unlimited</td><td>Custom capacity and deployment scope. Managed-service and redistribution rights remain separately controlled.</td></tr>
+        <tr><td><b>Professional</b></td><td>€1,990 / year + VAT</td><td>101–2,500 Monitored Sources</td><td>One production environment by default. SHC, multiple production environments, managed-service use and redistribution are not included unless explicitly granted.</td></tr>
+        <tr><td><b>Enterprise</b></td><td>€6,999 / year + VAT</td><td>2,501–10,000 Monitored Sources</td><td>SHC and multiple production environments can be entitled. Managed-service and redistribution rights remain separate signed entitlements.</td></tr>
+        <tr><td><b>Enterprise Plus</b></td><td>Custom quote</td><td>More than 10,000 or custom/unlimited</td><td>Custom capacity and deployment scope. Managed-service and redistribution rights remain separately controlled.</td></tr>
         <tr><td><b>Service Provider</b></td><td>Custom quote</td><td>Custom or unlimited</td><td>MSP/MSSP/hosted-service use and multi-environment rights can be granted. Redistribution/OEM/bundling remains separate unless explicitly enabled.</td></tr>
       </table>
       <div class="lsw-about-note"><b>Pricing:</b> the prices above are standard annual public list prices for direct licensing and exclude VAT where applicable. Final capacity, deployment rights, support scope, procurement terms, discounts and renewal terms are defined by the applicable order or commercial agreement. Current public pricing is published at <code>https://logsourcewatch.com/#pricing</code>.</div>
