@@ -1,3 +1,4 @@
+
 :root{--lsw-bg:#07121b;--lsw-panel:#0c1a25;--lsw-panel2:#102331;--lsw-line:#1d3444;--lsw-line2:#29485d;--lsw-text:#edf5f8;--lsw-muted:#8da5b5;--lsw-cyan:#58c7ef;--lsw-green:#38c982;--lsw-red:#e25050;--lsw-amber:#d8a11c;--lsw-violet:#8a6de9}
 body,.dashboard-body{background:var(--lsw-bg)!important;color:var(--lsw-text)!important}
 .dashboard-body{padding:0 14px 28px}
@@ -82,3 +83,17 @@ fieldset,.fieldset{border:1px solid var(--lsw-line)!important;border-radius:10px
 /* Do not restore background fills on hover. */
 .table tr:hover td[style],.splunk-table tr:hover td[style]{background-color:transparent!important;background-image:none!important}
 /* === RC7 REPORT TEXT COLOR: END === */
+
+
+/* RC8 heartbeat diagnostics */
+#lsw_heartbeat_stats table{table-layout:fixed!important;width:100%!important}
+#lsw_heartbeat_stats th,#lsw_heartbeat_stats td{text-align:center!important;white-space:normal!important;padding:8px 6px!important}
+#lsw_silent_table table{table-layout:fixed!important;width:100%!important;min-width:0!important}
+#lsw_silent_table th,#lsw_silent_table td{white-space:normal!important;overflow-wrap:anywhere!important;vertical-align:middle!important}
+#lsw_silent_table th:nth-child(1){width:13%}#lsw_silent_table th:nth-child(2){width:16%}#lsw_silent_table th:nth-child(3){width:10%}#lsw_silent_table th:nth-child(4){width:11%}#lsw_silent_table th:nth-child(5){width:11%}#lsw_silent_table th:nth-child(6){width:11%}#lsw_silent_table th:nth-child(7){width:28%}
+
+/* === RC9 HEALTH POLISH: BEGIN === */
+#lsw_report_kpis .single-value .single-result{font-variant-numeric:tabular-nums}
+.lsw-heartbeat-note{padding:12px 14px;border:1px solid #214052;border-radius:9px;background:#091923;color:#9db3bf;font-size:11px;line-height:1.55}
+.lsw-heartbeat-note b{color:#dfeef4}.lsw-heartbeat-note code{color:#8fdaf7;background:#07131c;border:1px solid #1c394a;border-radius:4px;padding:1px 4px}
+/* === RC9 HEALTH POLISH: END === */

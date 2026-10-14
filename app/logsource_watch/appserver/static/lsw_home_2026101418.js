@@ -10,6 +10,7 @@ require([
   var APP = "logsource_watch";
   var ROOT = "#lsw-home-root";
   var REFRESH_MS = 30000;
+  var HEARTBEAT_STALE_SECONDS = 900;
   var service = mvc.createService({owner:"nobody", app:APP});
   var timer = null;
 
@@ -26,15 +27,26 @@ require([
   function runSearch(search,timeout){return new Promise(function(resolve,reject){var id="lsw_home_search_"+Date.now()+"_"+(++searchSeq),done=false,timer,mgr,res;function finish(fn,v){if(done)return;done=true;window.clearTimeout(timer);try{mvc.Components.revokeInstance(id);}catch(e){}fn(v);}try{mgr=new SearchManager({id:id,search:search,preview:false,cache:false,autostart:false,app:APP});res=mgr.data("results",{count:0,output_mode:"json"});res.on("data",function(){try{var p=res.data();if(p)finish(resolve,resultRows(p));}catch(e){finish(reject,e);}});mgr.on("search:error",function(e){finish(reject,new Error("Search error: "+String((e&&e.message)||e)));});mgr.on("search:failed",function(e){finish(reject,new Error("Search failed: "+String((e&&e.message)||e)));});mgr.on("search:done",function(p){if(p&&p.content&&Number(p.content.resultCount||0)===0)finish(resolve,[]);});timer=window.setTimeout(function(){try{mgr.cancel();}catch(e){}finish(reject,new Error("Search timed out"));},timeout||15000);mgr.startSearch();}catch(e){finish(reject,e);}});}
   function licenseStatus(){return runSearch('| lswlicense | fields license_status license_valid edition customer license_id max_monitored_sources shc_allowed multiple_search_heads_allowed managed_service_allowed redistribution_allowed deployment_compliant expires_at days_remaining message',15000).then(function(r){return r&&r[0]?r[0]:{};}).catch(function(){return {license_status:"COMMUNITY",license_valid:1,edition:"Community",license_id:"COMMUNITY",max_monitored_sources:100,days_remaining:"",expires_at:"",message:"Community Edition is active."};});}
 
-  function sourceState(inv,ls){
+  function sourceState(inv,ls,hb){
     var now=epoch(),status=String(inv.status||"active").toLowerCase(),threshold=num(inv.threshold_seconds)||7200,maint=num(inv.maintenance_until),last=ls&&ls.last_seen!==undefined?Number(ls.last_seen):null,age=null,effective;
+    var hbLast=hb&&hb.heartbeat_last_seen!==undefined?Number(hb.heartbeat_last_seen):null,hbAge=null,hbStatus="UNKNOWN",diagnosis="",diagnosisLabel="";
     if(last!==null&&isFinite(last))age=Math.max(0,now-last);
+    if(hbLast!==null&&isFinite(hbLast)){hbAge=Math.max(0,now-hbLast);hbStatus=hbAge<=HEARTBEAT_STALE_SECONDS?"ALIVE":"STALE";}
     if(status==="retired")effective="RETIRED";
     else if(status==="maintenance"&&(maint===0||maint>now))effective="MAINTENANCE";
     else if(last===null||!isFinite(last))effective="NO LOG OBSERVATION";
     else if(age>threshold)effective="SILENT";
     else effective="OK";
-    return {_key:inv._key,index:inv.index||"",host:inv.host||"",status:status,effective_state:effective,threshold_seconds:threshold,threshold_minutes:Math.round(threshold/60),last_seen:last,age_seconds:age,maintenance_until:maint,ratio:(age===null?null:age/threshold)};
+    if(effective==="RETIRED"){diagnosis="RETIRED";diagnosisLabel="Retired";}
+    else if(effective==="MAINTENANCE"){diagnosis="MAINTENANCE";diagnosisLabel="Maintenance";}
+    else if(effective==="OK"){diagnosis="SOURCE_REPORTING";diagnosisLabel="Source reporting";}
+    else if(effective==="SILENT"&&hbStatus==="ALIVE"){diagnosis="SOURCE_SILENT_INTERNAL_ACTIVE";diagnosisLabel="Source silent · _internal active";}
+    else if(effective==="SILENT"&&hbStatus==="STALE"){diagnosis="SOURCE_SILENT_INTERNAL_STALE";diagnosisLabel="Source + _internal stale";}
+    else if(effective==="SILENT"){diagnosis="SOURCE_SILENT_INTERNAL_UNKNOWN";diagnosisLabel="Source silent · no _internal evidence";}
+    else if(effective==="NO LOG OBSERVATION"&&hbStatus==="ALIVE"){diagnosis="NO_LOG_INTERNAL_ACTIVE";diagnosisLabel="No source observation · _internal active";}
+    else if(effective==="NO LOG OBSERVATION"&&hbStatus==="STALE"){diagnosis="NO_LOG_INTERNAL_STALE";diagnosisLabel="No source observation · _internal stale";}
+    else {diagnosis="NO_LOG_INTERNAL_UNKNOWN";diagnosisLabel="No source observation · no _internal evidence";}
+    return {_key:inv._key,index:inv.index||"",host:inv.host||"",status:status,effective_state:effective,threshold_seconds:threshold,threshold_minutes:Math.round(threshold/60),last_seen:last,age_seconds:age,maintenance_until:maint,ratio:(age===null?null:age/threshold),heartbeat_last_seen:hbLast,heartbeat_age_seconds:hbAge,heartbeat_status:hbStatus,heartbeat_type:hb&&hb.heartbeat_type||"",diagnosis:diagnosis,diagnosis_label:diagnosisLabel};
   }
 
   function icon(name){
@@ -60,7 +72,7 @@ require([
     var bins=[{label:'Healthy margin',sub:'Less than 50% of threshold used',n:0,cls:'healthy'},{label:'Watch',sub:'50–80% of threshold used',n:0,cls:'watch'},{label:'Near threshold',sub:'80–100% of threshold used',n:0,cls:'near'},{label:'Silent',sub:'Threshold exceeded',n:0,cls:'silent'},{label:'No observation',sub:'No last_seen value',n:0,cls:'noobs'}];
     rows.forEach(function(r){if(r.effective_state==="RETIRED"||r.effective_state==="MAINTENANCE")return;if(r.effective_state==="NO LOG OBSERVATION"){bins[4].n++;return;}if(r.effective_state==="SILENT"){bins[3].n++;return;}var q=r.ratio||0;if(q<.5)bins[0].n++;else if(q<.8)bins[1].n++;else bins[2].n++;});
     var max=Math.max.apply(null,bins.map(function(b){return b.n;}));if(max<1)max=1;
-    return '<div class="lsw-risk-chart">'+bins.map(function(b){return '<div class="lsw-risk-row"><div class="lsw-risk-label"><b>'+b.label+'</b><span>'+b.sub+'</span></div><div class="lsw-risk-track"><i class="'+b.cls+'" style="width:'+Math.max(2,(b.n/max)*100)+'%"></i></div><strong>'+b.n+'</strong></div>';}).join('')+'</div>';
+    return '<div class="lsw-risk-chart">'+bins.map(function(b){var width=b.n===0?0:Math.max(2,(b.n/max)*100);return '<div class="lsw-risk-row"><div class="lsw-risk-label"><b>'+b.label+'</b><span>'+b.sub+'</span></div><div class="lsw-risk-track"><i class="'+b.cls+'" style="width:'+width+'%"></i></div><strong>'+b.n+'</strong></div>';}).join('')+'</div>';
   }
 
   function operationLabel(op){var m={threshold_change:'Threshold changed',maintenance_set:'Maintenance updated',lifecycle_change:'Lifecycle changed',source_enrolled:'Source enrolled'};return m[op]||String(op||'Configuration update').replace(/_/g,' ');}
@@ -78,8 +90,8 @@ require([
   }
 
   function render(payload){
-    var inv=payload.inv,seen=payload.seen,audit=payload.audit,license=payload.license||{},seenBy={};seen.forEach(function(x){seenBy[x._key]=x;});
-    var rows=inv.map(function(x){return sourceState(x,seenBy[x._key]);});
+    var inv=payload.inv,seen=payload.seen,heartbeat=payload.heartbeat||[],audit=payload.audit,license=payload.license||{},seenBy={},hbByHost={};seen.forEach(function(x){seenBy[x._key]=x;});heartbeat.forEach(function(x){hbByHost[x.host]=x;});
+    var rows=inv.map(function(x){return sourceState(x,seenBy[x._key],hbByHost[x.host]);});
     var counts={OK:0,SILENT:0,'NO LOG OBSERVATION':0,MAINTENANCE:0,RETIRED:0};rows.forEach(function(r){if(counts[r.effective_state]!==undefined)counts[r.effective_state]++;});
     var registered=rows.length, monitored=registered-counts.RETIRED, attention=counts.SILENT+counts['NO LOG OBSERVATION'];
     var health=registered===0?'SETUP REQUIRED':attention>0?'ATTENTION':'GOOD',healthCls=registered===0?'setup':attention>0?'attention':'good';
@@ -93,9 +105,9 @@ require([
     var recent=(audit||[]).slice(0,7);
     var updated=new Date(),z=function(n){return String(n).padStart(2,'0');},updatedText=updated.getFullYear()+'-'+z(updated.getMonth()+1)+'-'+z(updated.getDate())+' '+z(updated.getHours())+':'+z(updated.getMinutes())+':'+z(updated.getSeconds());
 
-    var alertCard=registered===0?'<a href="initial_setup" class="lsw-attention-banner setup"><div class="lsw-attention-symbol">'+icon('alert')+'</div><div><strong>Initial Setup required</strong><span>Configure the first monitoring scope, then use Management → Discover to enroll additional indexes and hosts.</span></div><b>Open setup ›</b></a>':attention?'<a href="silent_hosts" class="lsw-attention-banner"><div class="lsw-attention-symbol">'+icon('alert')+'</div><div><strong>'+attention+' source'+(attention===1?'':'s')+' require review</strong><span>Silent sources or registered sources with no log observation need operator attention.</span></div><b>›</b></a>':'<div class="lsw-attention-banner clear"><div class="lsw-attention-symbol">'+icon('ok')+'</div><div><strong>No sources require review</strong><span>All monitored sources are within policy.</span></div></div>';
+    var alertCard=registered===0?'<a href="initial_setup" class="lsw-attention-banner setup"><div class="lsw-attention-symbol">'+icon('alert')+'</div><div><strong>Initial Setup required</strong><span>Configure the first monitoring scope, then use Management → Discover to enroll additional indexes and hosts.</span></div><b>Open setup ›</b></a>':attention?'<a href="silent_hosts" class="lsw-attention-banner"><div class="lsw-attention-symbol">'+icon('alert')+'</div><div><strong>'+attention+' source'+(attention===1?'':'s')+' require review</strong><span>Silent/no-observation sources are correlated with Splunk _internal evidence to narrow the first investigation step.</span></div><b>›</b></a>':'<div class="lsw-attention-banner clear"><div class="lsw-attention-symbol">'+icon('ok')+'</div><div><strong>No sources require review</strong><span>All monitored sources are within policy.</span></div></div>';
 
-    var table=attentionRows.length?attentionRows.map(function(r){return '<tr><td><b>'+esc(r.host)+'</b></td><td>'+esc(r.index)+'</td><td><span class="lsw-state-pill '+(r.effective_state==='SILENT'?'silent':'noobs')+'">'+esc(r.effective_state)+'</span></td><td>'+r.threshold_minutes+' min</td><td>'+fmtEpoch(r.last_seen)+'</td><td class="lsw-age '+(r.effective_state==='SILENT'?'hot':'')+'">'+ageText(r.age_seconds)+'</td><td><a href="manage_hosts" class="lsw-row-action">Manage →</a></td></tr>';}).join(''):'<tr><td colspan="7" class="lsw-empty-cell">No sources currently require attention.</td></tr>';
+    var table=attentionRows.length?attentionRows.map(function(r){var hbCls=r.heartbeat_status==='ALIVE'?'alive':r.heartbeat_status==='STALE'?'stale':'unknown';var hbText=r.heartbeat_status==='ALIVE'?'ALIVE':r.heartbeat_status==='STALE'?'STALE':'NO EVIDENCE';return '<tr><td><b>'+esc(r.host)+'</b></td><td>'+esc(r.index)+'</td><td><span class="lsw-state-pill '+(r.effective_state==='SILENT'?'silent':'noobs')+'">'+esc(r.effective_state)+'</span></td><td class="lsw-age '+(r.effective_state==='SILENT'?'hot':'')+'">'+ageText(r.age_seconds)+'</td><td><span class="lsw-heartbeat-pill '+hbCls+'">'+hbText+'</span></td><td class="lsw-diagnosis">'+esc(r.diagnosis_label)+'</td><td><a href="manage_hosts" class="lsw-row-action">Manage →</a></td></tr>';}).join(''):'<tr><td colspan="7" class="lsw-empty-cell">No sources currently require attention.</td></tr>';
     var changes=recent.length?recent.map(function(a){return '<tr><td>'+fmtEpoch(a.event_time_epoch)+'</td><td><b>'+esc(a.host||'—')+'</b><small>'+esc(a.index||'')+'</small></td><td><span class="lsw-change-dot '+changeClass(a.operation)+'"></span>'+esc(operationLabel(a.operation))+'</td><td>'+esc(a.details||'—')+'</td></tr>';}).join(''):'<tr><td colspan="4" class="lsw-empty-cell">No recent administrative changes available.</td></tr>';
 
     var licenseNotice=renderLicenseNotice(license,monitored);
@@ -119,8 +131,8 @@ require([
         '<div><i class="maintenance"></i><span>Maintenance</span><b>'+counts.MAINTENANCE+' <small>('+pct(counts.MAINTENANCE,registered)+'%)</small></b></div>'+
         '<div><i class="retired"></i><span>Retired</span><b>'+counts.RETIRED+' <small>('+pct(counts.RETIRED,registered)+'%)</small></b></div>'+
       '</div></div></article></aside></section>'+
-      '<section class="lsw-home-bottom-grid"><article class="lsw-home-card lsw-attention-table-card"><header><div><span class="lsw-card-icon alert">'+icon('alert')+'</span><h2>Sources Needing Attention</h2><p>Sources outside their expected reporting policy.</p></div><a href="manage_hosts">View all sources →</a></header><div class="lsw-table-scroll"><table><thead><tr><th>Host</th><th>Index</th><th>State</th><th>Threshold</th><th>Last Seen</th><th>Age</th><th></th></tr></thead><tbody>'+table+'</tbody></table></div></article><article class="lsw-home-card lsw-recent-card"><header><div><span class="lsw-card-icon">'+icon('clock')+'</span><h2>Recent Changes</h2><p>Administrative policy and enrollment activity.</p></div><a href="audit_trail">View audit trail →</a></header><div class="lsw-table-scroll"><table><thead><tr><th>Time</th><th>Source</th><th>Change</th><th>Details</th></tr></thead><tbody>'+changes+'</tbody></table></div></article></section>'+
-      '<footer class="lsw-premium-footer"><span>Identity <b>index + host</b></span><span>Refresh <b>30 seconds</b></span><span>Policy <b>whole-minute thresholds</b></span><span>State <b>live inventory + last_seen</b></span></footer>'+
+      '<section class="lsw-home-bottom-grid"><article class="lsw-home-card lsw-attention-table-card"><header><div><span class="lsw-card-icon alert">'+icon('alert')+'</span><h2>Sources Needing Attention</h2><p>Sources outside policy, with _internal correlation for first-step triage.</p></div><a href="manage_hosts">View all sources →</a></header><div class="lsw-table-scroll"><table><thead><tr><th>Host</th><th>Index</th><th>State</th><th>Source age</th><th>_internal</th><th>Diagnosis</th><th></th></tr></thead><tbody>'+table+'</tbody></table></div></article><article class="lsw-home-card lsw-recent-card"><header><div><span class="lsw-card-icon">'+icon('clock')+'</span><h2>Recent Changes</h2><p>Administrative policy and enrollment activity.</p></div><a href="audit_trail">View audit trail →</a></header><div class="lsw-table-scroll"><table><thead><tr><th>Time</th><th>Source</th><th>Change</th><th>Details</th></tr></thead><tbody>'+changes+'</tbody></table></div></article></section>'+
+      '<footer class="lsw-premium-footer"><span>Identity <b>index + host</b></span><span>Refresh <b>30 seconds</b></span><span>Policy <b>whole-minute thresholds</b></span><span>State <b>inventory + last_seen + _internal</b></span></footer>'+
     '</div>';
     $(ROOT).html(html);
   }
@@ -131,9 +143,10 @@ require([
     Promise.all([
       kvGet('lsw_inventory',{limit:10000}),
       kvGet('lsw_lastseen',{limit:10000}),
+      kvGet('lsw_heartbeat',{limit:10000}).catch(function(){return [];}),
       kvGet('lsw_audit',{sort:'event_time_epoch:-1',limit:8}).catch(function(){return [];}),
       licenseStatus()
-    ]).then(function(p){render({inv:p[0],seen:p[1],audit:p[2],license:p[3]});}).catch(renderError).then(function(){$(ROOT).removeClass('is-loading');});
+    ]).then(function(p){render({inv:p[0],seen:p[1],heartbeat:p[2],audit:p[3],license:p[4]});}).catch(renderError).then(function(){$(ROOT).removeClass('is-loading');});
   }
   $(document).on('click.lswhome','[data-home-action=refresh]',function(){load();});
   timer=window.setInterval(function(){if(!document.hidden)load();},REFRESH_MS);

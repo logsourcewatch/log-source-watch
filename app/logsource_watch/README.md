@@ -11,8 +11,8 @@ A source is identified as a unique `index + host` pair. LSW tracks the latest ob
 - **Setup permissions:** `admin` or `sc_admin` for Initial Setup and management workflows.
 - **Dependencies:** no third-party Python packages or external services are required by the Splunk app.
 - **Developer:** Jonni Nieminen.
-- **Community support / issues:** `https://github.com/nieminej/log-source-watch/issues`.
-- **Commercial licensing:** `https://logsourcewatch.com/` once the commercial site is published.
+- **Community support / issues:** `https://github.com/logsourcewatch/log-source-watch/issues`.
+- **Product and commercial licensing:** `https://logsourcewatch.com/`.
 
 Custom search commands are packaged under `bin/` and may require a Splunk restart after installation or upgrade before their new `commands.conf` definitions are available.
 
@@ -43,7 +43,8 @@ Management and Bulk Actions use the authenticated Splunk application service to 
 
 - `lsw_inventory` — registered `index + host` identities and policy
 - `lsw_lastseen` — latest observed event timestamp
-- `lsw_state` — materialized canonical operational state
+- `lsw_heartbeat` — optional recent Splunk `_internal` heartbeat evidence by host
+- `lsw_state` — materialized canonical operational state and diagnostic enrichment
 - `lsw_audit` — administrative audit events
 - `lsw_health` — reserved/persisted health integration state
 
@@ -76,7 +77,7 @@ Human-facing reports are dark, read-only views:
 - **Application Health**
 - **Audit Trail**
 
-Backend compatibility searches and CSV exports remain available for integrations.
+Machine-readable saved searches and CSV snapshots remain available for operational integrations. `LSW_SilentHost` calculates the current SILENT list from inventory, last-seen and heartbeat evidence using the shared state policy.
 
 ## Configuration
 
@@ -106,3 +107,13 @@ Additional deployment and security notes are bundled under `README/`.
 
 
 See `README/LICENSING.md` for license-file installation and capacity behavior.
+
+
+## Heartbeat-aware diagnosis
+
+For monitored hosts, Log Source Watch can correlate source silence with recent `index=_internal sourcetype=splunkd source=*splunkd.log` evidence. This diagnostic context does not alter the canonical source lifecycle state and remains optional for agentless sources. See `README/HEARTBEAT_DIAGNOSTICS.md`.
+
+
+### Licensing page
+
+Administrators can review effective entitlement status and install or renew a signed license from the in-app **Licensing** page on standalone deployments. Search Head Cluster deployments must distribute the license consistently through the deployer.

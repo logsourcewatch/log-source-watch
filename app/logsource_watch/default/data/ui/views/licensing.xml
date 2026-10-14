@@ -1,0 +1,46 @@
+<dashboard version="1.1" theme="dark" hideEdit="true" stylesheet="lsw_license.css" script="lsw_license_2026101414.js">
+  <label>Licensing</label>
+  <description>View the active Log Source Watch entitlement and install or renew a signed license on standalone deployments.</description>
+
+  <row><panel><html>
+    <div id="lsw-license-root">
+      <div class="lsw-license-page-hero">
+        <div><div class="lsw-license-page-eyebrow">LOG SOURCE WATCH · LICENSING</div><h1>License status and renewal</h1><p>Review current capacity and deployment rights, then install a signed commercial license directly from the Splunk Web UI on standalone deployments.</p></div>
+        <a class="lsw-license-doc-link" href="about">Licensing model →</a>
+      </div>
+
+      <div id="lsw-license-alert" class="lsw-license-alert" style="display:none"></div>
+
+      <div class="lsw-license-layout">
+        <section class="lsw-license-panel">
+          <div class="lsw-license-panel-head"><div><span>ACTIVE ENTITLEMENT</span><h2 id="lsw-license-edition">Loading…</h2></div><button id="lsw-license-refresh" class="lsw-license-button secondary" type="button">Refresh</button></div>
+          <div id="lsw-license-message" class="lsw-license-message">Reading effective runtime status…</div>
+          <div class="lsw-license-capacity"><div><span>Monitored source usage</span><strong id="lsw-license-capacity">—</strong></div><div class="lsw-license-meter"><i id="lsw-license-meter"></i></div></div>
+          <div class="lsw-license-fact-grid">
+            <div><span>Status</span><b id="lsw-license-status">—</b></div>
+            <div><span>Customer</span><b id="lsw-license-customer">—</b></div>
+            <div><span>License ID</span><b id="lsw-license-id">—</b></div>
+            <div><span>Expires</span><b id="lsw-license-expires">—</b><small id="lsw-license-days"></small></div>
+            <div><span>Search Head Cluster</span><b id="lsw-license-shc">—</b></div>
+            <div><span>Multiple production SH</span><b id="lsw-license-multi">—</b></div>
+            <div><span>Managed service</span><b id="lsw-license-msp">—</b></div>
+            <div><span>Redistribution</span><b id="lsw-license-redist">—</b></div>
+          </div>
+        </section>
+
+        <section class="lsw-license-panel">
+          <div class="lsw-license-panel-head"><div><span>INSTALL OR RENEW</span><h2>Upload signed license</h2></div></div>
+          <p class="lsw-license-help">Select the <code>lsw_license.json</code> file supplied for this deployment. The server validates the signature, product, validity period and capacity before replacing the active license.</p>
+          <label class="lsw-license-drop" for="lsw-license-file">
+            <input id="lsw-license-file" type="file" accept=".json,application/json"/>
+            <b>Choose license file</b><span id="lsw-license-file-name">No file selected</span>
+          </label>
+          <div id="lsw-license-preview" class="lsw-license-preview" style="display:none"></div>
+          <div class="lsw-license-actions"><button id="lsw-license-install" class="lsw-license-button primary" type="button" disabled="disabled">Validate and install</button></div>
+          <div id="lsw-license-shc-note" class="lsw-license-shc-note" style="display:none"><b>Search Head Cluster detected.</b> GUI installation is intentionally disabled because a member-local license file would create inconsistent state. Deploy the same <code>local/lsw_license.json</code> through the SHC deployer.</div>
+          <div class="lsw-license-security"><b>Safe replacement:</b> invalid uploads never replace the current license. A successful update is written atomically and the previous file is retained as <code>lsw_license.json.previous</code>.</div>
+        </section>
+      </div>
+    </div>
+  </html></panel></row>
+</dashboard>

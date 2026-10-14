@@ -1,11 +1,14 @@
 <form version="1.1" theme="dark" hideEdit="true" stylesheet="lsw_reports.css">
   <label>Silent Sources</label>
-  <description>Currently monitored sources whose silence threshold has been exceeded.</description>
+  <description>Currently monitored sources whose silence threshold has been exceeded, correlated with Splunk _internal heartbeat evidence when available.</description>
   <init><set token="silent_index">*</set><set token="silent_text"></set></init>
 
   <search id="silent_base">
     <query><![CDATA[
-| inputlookup lsw_state
+| inputlookup lsw_inventory
+| lookup local=true lsw_lastseen _key OUTPUT last_seen updated_at AS lastseen_updated_at
+| lookup local=true lsw_heartbeat host OUTPUT heartbeat_last_seen heartbeat_updated_at heartbeat_source heartbeat_type
+| `lsw_calculate_state`
 | where effective_state="SILENT"
 | eval haystack=lower(index." ".host)
 | where ($silent_index|s$="*" OR index=$silent_index|s$)
@@ -16,7 +19,7 @@
 
   <row><panel><html>
     <div class="lsw-report-hero">
-      <div><div class="lsw-report-eyebrow">REPORTS</div><h1>Silent Sources</h1><p>Sources that have exceeded their configured silence threshold and require investigation.</p></div>
+      <div><div class="lsw-report-eyebrow">REPORTS</div><h1>Silent Sources</h1><p>Sources that exceeded policy, with _internal correlation to distinguish source silence from a stale or missing Splunk heartbeat.</p></div>
       <a class="lsw-report-action" href="manage_hosts">Open Management</a>
     </div>
   </html></panel></row>
@@ -24,7 +27,7 @@
   <fieldset submitButton="false">
     <input type="dropdown" token="silent_index" searchWhenChanged="true">
       <label>Index</label><choice value="*">All indexes</choice>
-      <search><query>| inputlookup lsw_state | where effective_state="SILENT" | stats count BY index | sort 0 index</query></search>
+      <search><query>| inputlookup lsw_inventory | lookup local=true lsw_lastseen _key OUTPUT last_seen | lookup local=true lsw_heartbeat host OUTPUT heartbeat_last_seen heartbeat_source heartbeat_type | `lsw_calculate_state` | where effective_state="SILENT" | stats count BY index | sort 0 index</query></search>
       <fieldForLabel>index</fieldForLabel><fieldForValue>index</fieldForValue><default>*</default>
     </input>
     <input type="text" token="silent_text" searchWhenChanged="true">
@@ -34,8 +37,9 @@
 
   <row id="lsw_report_kpis">
     <panel><single><title>Silent sources</title><search base="silent_base"><query>| stats count AS value</query></search><option name="drilldown">none</option></single></panel>
-    <panel><single><title>Affected indexes</title><search base="silent_base"><query>| stats dc(index) AS value</query></search><option name="drilldown">none</option></single></panel>
-    <panel><single><title>Oldest silence</title><search base="silent_base"><query>| stats max(age_seconds) AS age | eval value=case(isnull(age),"-",age&lt;3600,round(age/60,1)." min",age&lt;86400,round(age/3600,1)." h",true(),round(age/86400,1)." d") | fields value</query></search><option name="drilldown">none</option></single></panel>
+    <panel><single><title>_internal alive</title><search base="silent_base"><query>| stats count(eval(heartbeat_status="ALIVE")) AS value</query></search><option name="drilldown">none</option></single></panel>
+    <panel><single><title>_internal stale</title><search base="silent_base"><query>| stats count(eval(heartbeat_status="STALE")) AS value</query></search><option name="drilldown">none</option></single></panel>
+    <panel><single><title>No _internal evidence</title><search base="silent_base"><query>| stats count(eval(heartbeat_status="UNKNOWN" OR isnull(heartbeat_status))) AS value</query></search><option name="drilldown">none</option></single></panel>
   </row>
 
   <row><panel>
@@ -44,13 +48,15 @@
       <search base="silent_base"><query><![CDATA[
 | eval Threshold=round(threshold_seconds/60,0)." min",
        Silent_for=case(age_seconds<3600,round(age_seconds/60,1)." min",age_seconds<86400,round(age_seconds/3600,1)." h",true(),round(age_seconds/86400,1)." d"),
-       Over_threshold=case((age_seconds-threshold_seconds)<3600,round((age_seconds-threshold_seconds)/60,1)." min",(age_seconds-threshold_seconds)<86400,round((age_seconds-threshold_seconds)/3600,1)." h",true(),round((age_seconds-threshold_seconds)/86400,1)." d"),
-       Last_seen=strftime(last_seen,"%Y-%m-%d %H:%M:%S")
+       Internal=case(heartbeat_status="ALIVE","ALIVE",heartbeat_status="STALE","STALE",true(),"NO EVIDENCE"),
+       Internal_age=case(isnull(heartbeat_age_seconds),"—",heartbeat_age_seconds<3600,round(heartbeat_age_seconds/60,1)." min",heartbeat_age_seconds<86400,round(heartbeat_age_seconds/3600,1)." h",true(),round(heartbeat_age_seconds/86400,1)." d"),
+       Diagnosis=coalesce(diagnosis_label,"Source silent · no _internal evidence")
 | sort 0 - age_seconds index host
 | rename index AS Index host AS Host
-| table Index Host Threshold Silent_for Over_threshold Last_seen
+| table Index Host Threshold Silent_for Internal Internal_age Diagnosis
       ]]></query></search>
-      <option name="count">50</option><option name="drilldown">none</option><option name="wrap">false</option>
+      <format type="color" field="Internal"><colorPalette type="map">{"ALIVE":"#38c982","STALE":"#e25050","NO EVIDENCE":"#8799a7"}</colorPalette></format>
+      <option name="count">50</option><option name="drilldown">none</option><option name="wrap">true</option>
     </table>
   </panel></row>
 </form>

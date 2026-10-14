@@ -1,4 +1,4 @@
-<dashboard version="1.1" theme="dark" hideEdit="true" stylesheet="lsw_home.css" script="lsw_home_2026101212.js">
+<dashboard version="1.1" theme="dark" hideEdit="true" stylesheet="lsw_home.css" script="lsw_home_2026101418.js">
   <label>Overview</label>
   <description>Operational monitoring for log source availability and silence detection.</description>
   <row><panel><html>
