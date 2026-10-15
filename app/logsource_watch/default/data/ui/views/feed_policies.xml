@@ -1,0 +1,16 @@
+<dashboard version="1.1" theme="dark" hideEdit="true" stylesheet="lsw_manage.css,lsw_feed.css" script="lsw_feed_2026101501.js">
+  <label>Sourcetype Policies · Beta</label>
+  <description>Optional sourcetype-level silence policies beneath an existing index + host Monitored Source. Licensed capacity remains based on unique index + host pairs.</description>
+  <row>
+    <panel>
+      <html>
+        <div id="lsw-feed-root" class="lsw-manage-root" aria-live="polite">
+          <div class="lsw-boot-card">
+            <div class="lsw-spinner"></div>
+            <div><strong>Loading Sourcetype Policies</strong><span>Preparing optional feed-level monitoring…</span></div>
+          </div>
+        </div>
+      </html>
+    </panel>
+  </row>
+</dashboard>
