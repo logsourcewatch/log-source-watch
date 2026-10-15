@@ -2,6 +2,33 @@
 
 This file summarizes noteworthy product changes. Release tags remain the authoritative build references.
 
+## 4.9.4-beta.1 — production test candidate
+
+### Added
+
+- optional sourcetype-level silence policies beneath an existing `index + host` Monitored Source.
+- separate `lsw_feed_inventory`, `lsw_feed_lastseen` and `lsw_feed_state` KV Store collections so existing source identities require no migration.
+- **Sourcetype Policies · Beta** workspace for feed discovery, enrollment, threshold changes and enable/disable controls.
+- `LSW_Update_Feed_LastSeen`, `LSW_Build_Feed_State` and on-demand `LSW_SilentFeed` searches.
+- sourcetype field and feed-policy actions in the administrative Audit Trail.
+
+### Licensing behavior
+
+- licensed capacity remains based on unique `index + host` Monitored Sources exactly as defined by `LICENSE.txt`.
+- adding multiple sourcetype policies underneath the same registered base source does not consume additional licensed source capacity.
+
+### Beta behavior
+
+- feed policies inherit lifecycle and maintenance from their base source.
+- feed policies have an independent silence threshold and last-seen value.
+- the feature is intentionally beta-gated until runtime testing is complete; existing host-level monitoring remains the production baseline.
+
+### Upgrade note
+
+No migration of `lsw_inventory`, `lsw_lastseen` or `lsw_state` is required. New feed collections are additive.
+
+---
+
 ## 4.9.3-rc15 — 2026-10-14
 
 ### Added

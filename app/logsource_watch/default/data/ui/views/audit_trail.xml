@@ -1,6 +1,6 @@
 <form version="1.1" theme="dark" hideEdit="true" stylesheet="lsw_reports.css">
   <label>Audit Trail</label>
-  <description>Administrative enrollment, threshold, maintenance and lifecycle changes stored in the lsw_audit KV Store.</description>
+  <description>Administrative enrollment, threshold, maintenance, lifecycle and optional sourcetype-policy changes stored in the lsw_audit KV Store.</description>
   <init><set token="audit_scope">*</set><set token="audit_action">*</set><set token="audit_text"></set></init>
 
   <search id="audit_base">
@@ -10,7 +10,8 @@
 | where (info_min_time=0 OR event_time_epoch>=info_min_time) AND (info_max_time=0 OR event_time_epoch<=info_max_time)
 | eval scope_ui=case(scope="add","enrollment",true(),coalesce(scope,"-")),
        action_ui=coalesce(operation,"-"),
-       haystack=lower(coalesce(actor,"")." ".scope_ui." ".coalesce(operation,"")." ".coalesce(index,"")." ".coalesce(host,"")." ".coalesce(change_ref,"")." ".coalesce(details,""))
+       sourcetype_ui=coalesce(sourcetype,"-"),
+       haystack=lower(coalesce(actor,"")." ".scope_ui." ".coalesce(operation,"")." ".coalesce(index,"")." ".coalesce(host,"")." ".sourcetype_ui." ".coalesce(change_ref,"")." ".coalesce(details,""))
 | where ($audit_scope|s$="*" OR scope_ui=$audit_scope|s$)
 | where ($audit_action|s$="*" OR action_ui=$audit_action|s$)
 | where len(trim($audit_text|s$))=0 OR like(haystack,"%".lower(trim($audit_text|s$))."%")
@@ -20,22 +21,22 @@
 
   <row><panel><html>
     <div class="lsw-report-hero">
-      <div><div class="lsw-report-eyebrow">REPORTS</div><h1>Audit Trail</h1><p>Who changed what, where and when. One audit document is written for each affected source.</p></div>
+      <div><div class="lsw-report-eyebrow">REPORTS</div><h1>Audit Trail</h1><p>Who changed what, where and when. One audit document is written for each affected source or optional sourcetype policy.</p></div>
       <div class="lsw-report-meta"><b>Storage</b><span>lsw_audit KV Store</span></div>
     </div>
   </html></panel></row>
 
   <fieldset submitButton="false">
     <input type="time" token="audit_time" searchWhenChanged="true"><label>Time range</label><default><earliest>-30d@d</earliest><latest>now</latest></default></input>
-    <input type="dropdown" token="audit_scope" searchWhenChanged="true"><label>Scope</label><choice value="*">All scopes</choice><choice value="manage">Single-source management</choice><choice value="bulk">Bulk management</choice><choice value="enrollment">Enrollment</choice><choice value="scheduler">Scheduler</choice><default>*</default></input>
-    <input type="dropdown" token="audit_action" searchWhenChanged="true"><label>Action</label><choice value="*">All actions</choice><choice value="source_enrolled">Source enrolled</choice><choice value="threshold_change">Threshold changed</choice><choice value="maintenance_set">Maintenance changed</choice><choice value="lifecycle_change">Lifecycle changed</choice><choice value="maintenance_expired">Maintenance expired</choice><default>*</default></input>
+    <input type="dropdown" token="audit_scope" searchWhenChanged="true"><label>Scope</label><choice value="*">All scopes</choice><choice value="manage">Single-source management</choice><choice value="bulk">Bulk management</choice><choice value="enrollment">Enrollment</choice><choice value="feed_policy">Sourcetype policy</choice><choice value="scheduler">Scheduler</choice><default>*</default></input>
+    <input type="dropdown" token="audit_action" searchWhenChanged="true"><label>Action</label><choice value="*">All actions</choice><choice value="source_enrolled">Source enrolled</choice><choice value="threshold_change">Threshold changed</choice><choice value="maintenance_set">Maintenance changed</choice><choice value="lifecycle_change">Lifecycle changed</choice><choice value="maintenance_expired">Maintenance expired</choice><choice value="feed_enrolled">Feed enrolled</choice><choice value="feed_threshold_change">Feed threshold changed</choice><choice value="feed_enabled">Feed enabled</choice><choice value="feed_disabled">Feed disabled</choice><default>*</default></input>
     <input type="text" token="audit_text" searchWhenChanged="true"><label>Search audit records</label><default></default></input>
   </fieldset>
 
   <row id="lsw_report_kpis">
     <panel><single><title>Audit records</title><search base="audit_base"><query>| stats count AS value</query></search><option name="drilldown">none</option></single></panel>
     <panel><single><title>Users</title><search base="audit_base"><query>| stats dc(actor) AS value</query></search><option name="drilldown">none</option></single></panel>
-    <panel><single><title>Affected sources</title><search base="audit_base"><query>| eval source=index."|".host | stats dc(source) AS value</query></search><option name="drilldown">none</option></single></panel>
+    <panel><single><title>Affected identities</title><search base="audit_base"><query>| eval source=index."|".host."|".coalesce(sourcetype,"") | stats dc(source) AS value</query></search><option name="drilldown">none</option></single></panel>
   </row>
 
   <row><panel><table id="audit_table">
@@ -43,8 +44,9 @@
     <search base="audit_base"><query><![CDATA[
 | eval Time=strftime(event_time_epoch,"%Y-%m-%d %H:%M:%S"),
        User=coalesce(actor,"-"),
-       Scope=case(scope_ui="manage","Management",scope_ui="bulk","Bulk Actions",scope_ui="enrollment","Enrollment",scope_ui="scheduler","Scheduler",true(),scope_ui),
-       Action=case(operation="source_enrolled","SOURCE ENROLLED",operation="threshold_change","THRESHOLD",operation="maintenance_set","MAINTENANCE",operation="lifecycle_change","LIFECYCLE",operation="maintenance_expired","MAINTENANCE EXPIRED",true(),upper(operation)),
+       Scope=case(scope_ui="manage","Management",scope_ui="bulk","Bulk Actions",scope_ui="enrollment","Enrollment",scope_ui="feed_policy","Sourcetype Policy",scope_ui="scheduler","Scheduler",true(),scope_ui),
+       Action=case(operation="source_enrolled","SOURCE ENROLLED",operation="threshold_change","THRESHOLD",operation="maintenance_set","MAINTENANCE",operation="lifecycle_change","LIFECYCLE",operation="maintenance_expired","MAINTENANCE EXPIRED",operation="feed_enrolled","FEED ENROLLED",operation="feed_threshold_change","FEED THRESHOLD",operation="feed_enabled","FEED ENABLED",operation="feed_disabled","FEED DISABLED",true(),upper(operation)),
+       Sourcetype=coalesce(sourcetype,"-"),
        Old_status=coalesce(old_status,"-"),
        New_status=coalesce(new_status,"-"),
        Old_threshold=if(isnull(old_threshold_seconds),"-",round(old_threshold_seconds/60,0)." min"),
@@ -61,13 +63,17 @@
          change_ref="setup-initial-enrollment","Initial Setup · enrollment",
          change_ref="setup-refresh","Initial Setup · refresh",
          change_ref="maintenance-expired","Scheduler · maintenance expiry",
+         change_ref="ui-feed-enroll","Sourcetype Policy · enrollment",
+         change_ref="ui-feed-threshold","Sourcetype Policy · threshold",
+         change_ref="ui-feed-enable","Sourcetype Policy · enable",
+         change_ref="ui-feed-disable","Sourcetype Policy · disable",
          like(change_ref,"ui-bulk-%"),"Bulk Actions · ".replace(change_ref,"^ui-bulk-",""),
          true(),coalesce(change_ref,"-")
        )
 | sort 0 - event_time_epoch
-| table Time User Scope Action index host Old_status New_status Old_threshold New_threshold Old_maintenance New_maintenance Origin details
+| table Time User Scope Action index host Sourcetype Old_status New_status Old_threshold New_threshold Old_maintenance New_maintenance Origin details
     ]]></query></search>
-    <format type="color" field="Action"><colorPalette type="map">{"SOURCE ENROLLED":"#38c982","THRESHOLD":"#5ab8e8","MAINTENANCE":"#8a6de9","LIFECYCLE":"#d8a11c","MAINTENANCE EXPIRED":"#8a6de9"}</colorPalette></format>
+    <format type="color" field="Action"><colorPalette type="map">{"SOURCE ENROLLED":"#38c982","THRESHOLD":"#5ab8e8","MAINTENANCE":"#8a6de9","LIFECYCLE":"#d8a11c","MAINTENANCE EXPIRED":"#8a6de9","FEED ENROLLED":"#38c982","FEED THRESHOLD":"#5ab8e8","FEED ENABLED":"#38c982","FEED DISABLED":"#8799a7"}</colorPalette></format>
     <format type="color" field="Old_status"><colorPalette type="map">{"active":"#38c982","maintenance":"#8a6de9","retired":"#8799a7","new":"#5ab8e8","silent":"#e25050","no_log_observation":"#d8a11c","-":"#8799a7"}</colorPalette></format>
     <format type="color" field="New_status"><colorPalette type="map">{"active":"#38c982","maintenance":"#8a6de9","retired":"#8799a7","new":"#5ab8e8","silent":"#e25050","no_log_observation":"#d8a11c","-":"#8799a7"}</colorPalette></format>
     <option name="count">50</option><option name="drilldown">none</option><option name="wrap">true</option>

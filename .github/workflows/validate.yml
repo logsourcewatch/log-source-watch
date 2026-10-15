@@ -39,3 +39,14 @@ jobs:
         run: |
           tar -tzf dist/logsource_watch-ci.tgz | head -80
           cat dist/logsource_watch-ci.tgz.sha256
+
+      - name: Upload validated test package
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: logsource-watch-pr-${{ github.event.pull_request.number }}
+          path: |
+            dist/logsource_watch-ci.tgz
+            dist/logsource_watch-ci.tgz.sha256
+          if-no-files-found: error
+          retention-days: 14

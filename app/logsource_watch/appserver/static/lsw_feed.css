@@ -1,0 +1,15 @@
+/* Log Source Watch - Sourcetype Policies beta */
+#lsw-feed-root .lsw-feed-layout{display:grid;grid-template-columns:minmax(420px,.9fr) minmax(620px,1.4fr);gap:16px;align-items:start}
+#lsw-feed-root .lsw-feed-config{display:grid;gap:14px;padding:0 18px 18px}
+#lsw-feed-root .lsw-feed-config label{display:grid;gap:7px;color:#91a8b6;font-size:12px;font-weight:700}
+#lsw-feed-root .lsw-feed-capacity-note{display:flex;gap:8px;align-items:flex-start;margin:0 18px 16px;padding:11px 13px;border:1px solid rgba(56,201,130,.25);border-radius:10px;background:rgba(20,86,61,.12);color:#9db4c1;font-size:12px;line-height:1.45}
+#lsw-feed-root .lsw-feed-capacity-note strong{color:#62daa0;white-space:nowrap}
+#lsw-feed-root .lsw-feed-sub{display:block;margin-top:3px;color:#6f8998;font-size:10px;font-weight:600}
+#lsw-feed-root .lsw-feed-actions{display:flex;gap:6px;justify-content:flex-end;white-space:nowrap}
+#lsw-feed-root .lsw-btn-compact{min-height:30px!important;padding:0 9px!important;font-size:11px!important}
+#lsw-feed-root .lsw-premium-card{overflow:hidden}
+#lsw-feed-root .lsw-table td{vertical-align:middle}
+#lsw-feed-root .lsw-table .lsw-mono{white-space:normal;overflow-wrap:anywhere}
+#lsw-feed-root .lsw-kpi{cursor:default}
+@media(max-width:1250px){#lsw-feed-root .lsw-feed-layout{grid-template-columns:1fr}}
+@media(max-width:700px){#lsw-feed-root .lsw-feed-capacity-note{display:grid}#lsw-feed-root .lsw-feed-actions{flex-direction:column}}

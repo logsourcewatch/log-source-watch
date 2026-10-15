@@ -1,6 +1,7 @@
 <nav search_view="search">
   <view name="overview" default="true"/>
   <view name="manage_hosts"/>
+  <view name="feed_policies"/>
   <collection label="Reports">
     <view name="silent_hosts"/>
     <view name="health"/>
